@@ -107,4 +107,9 @@ public class GnmiHandshaker implements DeviceHandshaker, HandlerBehaviour {
     public DriverData data() {
         return null;
     }
+
+    @Override
+    public void setData(DriverData data) {
+        // Not handled
+    }
 }
