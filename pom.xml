@@ -1,0 +1,181 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<!--<parent>
+        <artifactId>onos-drivers-general</artifactId>
+        <groupId>org.onosproject</groupId>
+        <version>2.7.0</version>
+  </parent>-->
+
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>org.onosproject.drivers</groupId>
+  <artifactId>onos-drivers-padtec</artifactId>
+  <version>2.7.0</version>
+  <packaging>bundle</packaging>
+
+  <name>Padtec ONOS Driver</name>
+  <description>ONOS device driver bundle for Padtec devices</description>
+
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <maven.compiler.source>11</maven.compiler.source>
+    <maven.compiler.target>11</maven.compiler.target>
+
+    <onos.app.name>org.onosproject.drivers.padtec</onos.app.name>
+    <onos.app.origin>Padtec</onos.app.origin>
+
+    <onos.version>2.7.0</onos.version>
+    <onos.maven.plugin.version>2.4.0</onos.maven.plugin.version>
+  </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>org.onosproject</groupId>
+        <artifactId>onos-dependencies</artifactId>
+        <version>${onos.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+  <dependencies>
+    <!-- ONOS API provided at runtime -->
+    <dependency>
+      <groupId>org.onosproject</groupId>
+      <artifactId>onos-api</artifactId>
+      <version>${onos.version}</version>
+    </dependency>
+
+    <dependency>
+        <groupId>org.onosproject</groupId>
+        <artifactId>onos-apps-optical-model</artifactId>
+        <version>${onos.version}</version>
+    </dependency>
+
+    <!-- Netconf API (used by NetconfController/NetconfSession) -->
+    <dependency>
+      <groupId>org.onosproject</groupId>
+      <artifactId>onos-protocols-netconf-api</artifactId>
+      <version>${onos.version}</version>
+      <scope>provided</scope>
+    </dependency>
+
+     <dependency>
+        <groupId>org.onosproject</groupId>
+        <artifactId>onos-drivers-utilities</artifactId>
+        <version>${onos.version}</version>
+      <scope>provided</scope>
+     </dependency>
+
+    <!-- SLF4J API (provided by ONOS) -->
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-api</artifactId>
+      <scope>provided</scope>
+    </dependency>
+
+    <!-- Guava (used in sources) -->
+    <dependency>
+      <groupId>com.google.guava</groupId>
+      <artifactId>guava</artifactId>
+      <version>28.2-jre</version>
+    </dependency>
+
+    <!-- Apache Commons Configuration -->
+    <dependency>
+      <groupId>commons-configuration</groupId>
+      <artifactId>commons-configuration</artifactId>
+      <version>1.10</version>
+    </dependency>
+
+    <!-- Optional: Protobuf & gRPC (gnmi) - uncomment if your GnmiHandshaker requires these -->
+    <dependency>
+      <groupId>com.google.protobuf</groupId>
+      <artifactId>protobuf-java</artifactId>
+      <version>3.6.1</version>
+    </dependency>
+    <dependency>
+      <groupId>io.grpc</groupId>
+      <artifactId>grpc-netty</artifactId>
+      <version>1.15.1</version>
+    </dependency>
+    <dependency>
+      <groupId>io.grpc</groupId>
+      <artifactId>grpc-stub</artifactId>
+      <version>1.15.1</version>
+    </dependency>
+    <dependency>
+        <groupId>org.onosproject</groupId>
+        <artifactId>onos-protocols-grpc-api</artifactId>
+        <version>${onos.version}</version>
+        <scope>provided</scope>
+    </dependency>
+    <dependency>
+        <groupId>org.onosproject</groupId>
+        <artifactId>onos-protocols-gnmi-api</artifactId>
+        <version>${onos.version}</version>
+        <scope>provided</scope>
+    </dependency>
+
+    <dependency>
+        <groupId>org.osgi</groupId>
+        <artifactId>org.osgi.service.component.annotations</artifactId>
+        <version>1.4.0</version>
+        <scope>provided</scope>
+    </dependency>
+   
+
+    <!-- Test dependencies -->
+    <dependency>
+      <groupId>junit</groupId>
+      <artifactId>junit</artifactId>
+      <version>4.12</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.8.1</version>
+        <configuration>
+          <source>${maven.compiler.source}</source>
+          <target>${maven.compiler.target}</target>
+        </configuration>
+      </plugin>
+
+      <plugin>
+        <groupId>org.onosproject</groupId>
+        <artifactId>onos-maven-plugin</artifactId>
+        <version>${onos.maven.plugin.version}</version>
+        <executions>
+          <execution>
+            <goals>
+              <goal>app</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.felix</groupId>
+        <artifactId>maven-bundle-plugin</artifactId>
+        <version>3.5.0</version>
+        <extensions>true</extensions>
+        <configuration>
+          <instructions>
+            <Bundle-SymbolicName>${project.groupId}.${project.artifactId}</Bundle-SymbolicName>
+            <Export-Package>org.onosproject.drivers.padtec.*</Export-Package>
+            <Import-Package>*;resolution:=optional</Import-Package>
+          </instructions>
+        </configuration>
+      </plugin>
+
+    </plugins>
+  </build>
+</project>
