@@ -30,6 +30,7 @@ import org.onosproject.net.device.PortStatistics;
 import org.onosproject.net.device.DeviceService;
 import org.onosproject.net.device.PortDescription;
 import org.onosproject.net.device.PortStatisticsDiscovery;
+import org.onosproject.net.driver.DriverData;
 import org.onosproject.net.driver.DriverHandler;
 import org.onosproject.net.driver.HandlerBehaviour;
 
@@ -106,5 +107,15 @@ public class PadtecDeviceDescription implements DeviceDescriptionDiscovery, Port
     @Override
     public void setHandler(DriverHandler handler) {
         this.handler = handler;
+    }
+
+    @Override
+    public DriverData data() {
+        return handler.data();
+    }
+
+    @Override
+    public void setData(DriverData data) {
+        // Not handled
     }
 }
