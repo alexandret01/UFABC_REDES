@@ -24,8 +24,9 @@ import org.onosproject.alarm.AlarmId;
 import org.onosproject.alarm.DefaultAlarm;
 import org.onosproject.alarm.XmlEventParser;
 import org.onosproject.net.DeviceId;
-import org.onosproject.net.driver.AbstractHandlerBehaviour;
+import org.onosproject.net.driver.DriverData;
 import org.onosproject.net.driver.DriverHandler;
+import org.onosproject.net.driver.HandlerBehaviour;
 import org.onosproject.netconf.NetconfController;
 import org.onosproject.netconf.NetconfException;
 import org.onosproject.mastership.MastershipService;
@@ -42,7 +43,7 @@ import static org.slf4j.LoggerFactory.getLogger;
 /**
  * Polatis specific implementation to provide a list of current alarms.
  */
-public class PadtecAlarmConsumer extends AbstractHandlerBehaviour implements AlarmConsumer {
+public class PadtecAlarmConsumer implements AlarmConsumer, HandlerBehaviour {
     private final Logger log = getLogger(getClass());
 
     private static final String ALARM_TIME = "alarm-time";
@@ -51,6 +52,7 @@ public class PadtecAlarmConsumer extends AbstractHandlerBehaviour implements Ala
     private static final String ALARM_MESSAGE = "alarm-message";
 
     private DeviceId deviceId;
+    private DriverHandler handler;
 
     @Override
     public List<Alarm> consumeAlarms() {
@@ -62,4 +64,23 @@ public class PadtecAlarmConsumer extends AbstractHandlerBehaviour implements Ala
         return ImmutableList.copyOf(alarms);
     }
 
+    @Override
+    public DriverHandler handler() {
+        return handler;
+    }
+
+    @Override
+    public void setHandler(DriverHandler handler) {
+        this.handler = handler;
+    }
+
+    @Override
+    public DriverData data() {
+        return null;
+    }
+
+    @Override
+    public void setData(DriverData data) {
+
+    }
 }

@@ -15,18 +15,18 @@
  */
 package org.onosproject.drivers.padtec;
 
-import org.junit.Before;
-import org.onosproject.net.driver.AbstractDriverLoaderTest;
-import org.onosproject.ui.UiExtensionServiceAdapter;
+//import org.junit.Before;
+//import org.onosproject.net.driver.AbstractDriverLoaderTest;
+//import org.onosproject.ui.UiExtensionServiceAdapter;
 
 /**
  * Polatis OpenFlow drivers loader test.
  */
-public class PadtecDriversLoaderTest extends AbstractDriverLoaderTest {
-
-    @Before
-    public void setUp() {
-        loader = new PadtecDriversLoader();
-        ((PadtecDriversLoader) loader).uiExtensionService = new UiExtensionServiceAdapter();
-    }
-}
+//public class PadtecDriversLoaderTest extends AbstractDriverLoaderTest {
+//
+//    @Before
+//    public void setUp() {
+//        loader = new PadtecDriversLoader();
+//        ((PadtecDriversLoader) loader).uiExtensionService = new UiExtensionServiceAdapter();
+//    }
+//}

@@ -26,8 +26,9 @@ import org.onosproject.net.Port;
 import org.onosproject.net.DefaultAnnotations;
 import org.onosproject.net.behaviour.LinkDiscovery;
 import org.onosproject.net.device.DeviceService;
-import org.onosproject.net.driver.AbstractHandlerBehaviour;
+import org.onosproject.net.driver.DriverData;
 import org.onosproject.net.driver.DriverHandler;
+import org.onosproject.net.driver.HandlerBehaviour;
 import org.onosproject.net.link.DefaultLinkDescription;
 import org.onosproject.net.link.LinkDescription;
 import org.onosproject.netconf.NetconfController;
@@ -47,9 +48,11 @@ import static org.slf4j.LoggerFactory.getLogger;
 /**
  * Reads peer-port fields from a Polatis switch, parses them and returns a set of LinkDescriptions.
  */
-public class PadtecLinkDiscovery extends AbstractHandlerBehaviour implements LinkDiscovery {
+public class PadtecLinkDiscovery implements LinkDiscovery, HandlerBehaviour {
 
     private final Logger log = getLogger(getClass());
+
+    private DriverHandler handler;
 
 
     /**
@@ -96,4 +99,23 @@ public class PadtecLinkDiscovery extends AbstractHandlerBehaviour implements Lin
         return links;
     }
 
+    @Override
+    public DriverHandler handler() {
+        return handler;
+    }
+
+    @Override
+    public void setHandler(DriverHandler handler) {
+        this.handler = handler;
+    }
+
+    @Override
+    public DriverData data() {
+        return null;
+    }
+
+    @Override
+    public void setData(DriverData data) {
+
+    }
 }

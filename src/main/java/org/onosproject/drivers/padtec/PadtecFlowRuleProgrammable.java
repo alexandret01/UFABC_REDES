@@ -18,7 +18,9 @@ package org.onosproject.drivers.padtec;
 
 
 
-import org.onosproject.net.driver.AbstractHandlerBehaviour;
+import org.onosproject.net.driver.DriverData;
+import org.onosproject.net.driver.DriverHandler;
+import org.onosproject.net.driver.HandlerBehaviour;
 import org.onosproject.net.flow.FlowEntry;
 import org.onosproject.net.flow.FlowRule;
 import org.onosproject.net.flow.FlowRuleProgrammable;
@@ -34,9 +36,11 @@ import static org.slf4j.LoggerFactory.getLogger;
 /**
  * Flow rule programmable behaviour for Polatis optical netconf devices.
  */
-public class PadtecFlowRuleProgrammable extends AbstractHandlerBehaviour implements FlowRuleProgrammable {
+public class PadtecFlowRuleProgrammable implements FlowRuleProgrammable, HandlerBehaviour {
 
     private static final Logger log = getLogger(PadtecFlowRuleProgrammable.class);
+
+    private DriverHandler handler;
 
     @Override
     public Collection<FlowEntry> getFlowEntries() {
@@ -56,5 +60,23 @@ public class PadtecFlowRuleProgrammable extends AbstractHandlerBehaviour impleme
         return flows;
     }
 
+    @Override
+    public DriverHandler handler() {
+        return handler;
+    }
 
+    @Override
+    public void setHandler(DriverHandler handler) {
+        this.handler = handler;
+    }
+
+    @Override
+    public DriverData data() {
+        return null;
+    }
+
+    @Override
+    public void setData(DriverData data) {
+
+    }
 }

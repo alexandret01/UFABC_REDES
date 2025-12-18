@@ -30,7 +30,8 @@ import org.onosproject.net.device.PortStatistics;
 import org.onosproject.net.device.DeviceService;
 import org.onosproject.net.device.PortDescription;
 import org.onosproject.net.device.PortStatisticsDiscovery;
-import org.onosproject.net.driver.AbstractHandlerBehaviour;
+import org.onosproject.net.driver.DriverHandler;
+import org.onosproject.net.driver.HandlerBehaviour;
 
 import org.onlab.packet.ChassisId;
 
@@ -49,10 +50,11 @@ import static com.google.common.base.Preconditions.checkNotNull;
  * Representation of device information and ports via NETCONF for all Polatis
  * optical circuit switches.
  */
-public class PadtecDeviceDescription extends AbstractHandlerBehaviour
-    implements DeviceDescriptionDiscovery, PortStatisticsDiscovery  {
+public class PadtecDeviceDescription implements DeviceDescriptionDiscovery, PortStatisticsDiscovery, HandlerBehaviour {
 
     private final Logger log = getLogger(getClass());
+
+    private DriverHandler handler;
 
     /**
      * Discovers device details, for padtec device by getting the system
@@ -96,5 +98,13 @@ public class PadtecDeviceDescription extends AbstractHandlerBehaviour
         return stats;
     }
 
-	
+    @Override
+    public DriverHandler handler() {
+        return handler;
+    }
+
+    @Override
+    public void setHandler(DriverHandler handler) {
+        this.handler = handler;
+    }
 }

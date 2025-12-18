@@ -19,7 +19,9 @@ import org.onosproject.net.ChannelSpacing;
 import org.onosproject.net.OchSignal;
 import org.onosproject.net.PortNumber;
 import org.onosproject.net.behaviour.LambdaQuery;
-import org.onosproject.net.driver.AbstractHandlerBehaviour;
+import org.onosproject.net.driver.DriverData;
+import org.onosproject.net.driver.DriverHandler;
+import org.onosproject.net.driver.HandlerBehaviour;
 
 
 import com.google.common.collect.ImmutableSet;
@@ -31,7 +33,9 @@ import java.util.stream.IntStream;
  * Padtec Lambda query.
  * 88 50GHz fixed grid channels with 6.25 slot width, starting from 0 to 87.
  */
-public class PadtecLambdaQuery extends AbstractHandlerBehaviour implements LambdaQuery {
+public class PadtecLambdaQuery implements LambdaQuery, HandlerBehaviour {
+
+    private DriverHandler handler;
 
     @Override
     public Set<OchSignal> queryLambdas(PortNumber port) {
@@ -45,6 +49,23 @@ public class PadtecLambdaQuery extends AbstractHandlerBehaviour implements Lambd
                 .collect(ImmutableSet.toImmutableSet());
     }
 
+    @Override
+    public DriverHandler handler() {
+        return handler;
+    }
+
+    @Override
+    public void setHandler(DriverHandler handler) {
+        this.handler = handler;
+    }
+
+    @Override
+    public DriverData data() {
+        return null;
+    }
+
+    @Override
+    public void setData(DriverData data) {
+
+    }
 }
-
-

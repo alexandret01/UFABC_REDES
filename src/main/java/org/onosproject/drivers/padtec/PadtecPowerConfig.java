@@ -22,7 +22,9 @@ import org.onosproject.net.Direction;
 import org.onosproject.net.OchSignal;
 import org.onosproject.net.PortNumber;
 import org.onosproject.net.behaviour.PowerConfig;
-import org.onosproject.net.driver.AbstractHandlerBehaviour;
+import org.onosproject.net.driver.DriverData;
+import org.onosproject.net.driver.DriverHandler;
+import org.onosproject.net.driver.HandlerBehaviour;
 import org.slf4j.Logger;
 
 import java.util.ArrayList;
@@ -36,11 +38,12 @@ import static org.slf4j.LoggerFactory.getLogger;
  * Get current or target port/channel power from a Polatis optical netconf device.
  * Set target port power or channel attenuation to an optical netconf device.
  */
-public class PadtecPowerConfig<T> extends AbstractHandlerBehaviour
-        implements PowerConfig<T> {
+public class PadtecPowerConfig<T> implements PowerConfig<T>, HandlerBehaviour {
 
 
     private static final Logger log = getLogger(PadtecPowerConfig.class);
+
+    private DriverHandler handler;
 
     @Override
     public Optional<Double> getTargetPower(PortNumber port, T component) {
@@ -97,5 +100,23 @@ public class PadtecPowerConfig<T> extends AbstractHandlerBehaviour
         return null;
     }
 
+    @Override
+    public DriverHandler handler() {
+        return handler;
+    }
 
+    @Override
+    public void setHandler(DriverHandler handler) {
+        this.handler = handler;
+    }
+
+    @Override
+    public DriverData data() {
+        return null;
+    }
+
+    @Override
+    public void setData(DriverData data) {
+
+    }
 }
