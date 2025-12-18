@@ -19,6 +19,7 @@ package org.onosproject.drivers.padtec;
 import org.onosproject.net.MastershipRole;
 import org.onosproject.net.device.DeviceAgentListener;
 import org.onosproject.net.device.DeviceHandshaker;
+import org.onosproject.net.driver.DriverData;
 import org.onosproject.net.driver.DriverHandler;
 import org.onosproject.net.driver.HandlerBehaviour;
 import org.onosproject.net.provider.ProviderId;
@@ -93,7 +94,6 @@ public class GnmiHandshaker implements DeviceHandshaker, HandlerBehaviour {
         // Not handled
     }
 
-    @Override
     public boolean isConnected() {
         return true;
     }
@@ -101,5 +101,10 @@ public class GnmiHandshaker implements DeviceHandshaker, HandlerBehaviour {
     @Override
     public boolean hasConnection() {
         return true;
+    }
+
+    @Override
+    public DriverData data() {
+        return null;
     }
 }

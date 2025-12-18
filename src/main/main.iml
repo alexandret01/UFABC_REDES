@@ -11,5 +11,7 @@
     <orderEntry type="library" name="Maven: org.onosproject:onos-api:2.7.0" level="project" />
     <orderEntry type="library" name="Maven: com.google.guava:guava:28.2-jre" level="project" />
     <orderEntry type="library" name="Maven: org.osgi:org.osgi.service.component.annotations:1.4.0" level="project" />
+    <orderEntry type="library" name="Maven: org.onosproject:onos-protocols-netconf-api:2.7.0" level="project" />
+    <orderEntry type="library" name="Maven: org.slf4j:slf4j-api:1.7.25" level="project" />
   </component>
 </module>
