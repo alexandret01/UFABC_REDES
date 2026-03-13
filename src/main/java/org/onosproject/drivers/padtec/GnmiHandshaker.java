@@ -35,7 +35,7 @@ public class GnmiHandshaker extends AbstractHandlerBehaviour implements DeviceHa
     @Override
     public boolean isReachable() {
         final GnmiClient client = getClient();
-        return client != null && client.isServerReachable().join();
+        return client != null && client.isServerReachable();
     }
 
     @Override
@@ -44,7 +44,7 @@ public class GnmiHandshaker extends AbstractHandlerBehaviour implements DeviceHa
         if (client == null) {
             return CompletableFuture.completedFuture(false);
         }
-        return client.isServerReachable();
+        return CompletableFuture.completedFuture(client.isServerReachable());
     }
 
     @Override
