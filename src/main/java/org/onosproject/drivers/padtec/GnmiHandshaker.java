@@ -16,100 +16,85 @@
 
 package org.onosproject.drivers.padtec;
 
+import org.onosproject.gnmi.api.GnmiClient;
+import org.onosproject.gnmi.api.GnmiController;
 import org.onosproject.net.MastershipRole;
 import org.onosproject.net.device.DeviceAgentListener;
 import org.onosproject.net.device.DeviceHandshaker;
-import org.onosproject.net.driver.DriverData;
-import org.onosproject.net.driver.DriverHandler;
-import org.onosproject.net.driver.HandlerBehaviour;
+import org.onosproject.net.driver.AbstractHandlerBehaviour;
 import org.onosproject.net.provider.ProviderId;
+import org.onosproject.net.DeviceId;
 
 import java.util.concurrent.CompletableFuture;
 
 /**
  * Implementation of DeviceHandshaker for gNMI.
  */
-public class GnmiHandshaker implements DeviceHandshaker, HandlerBehaviour {
-
-    private DriverHandler handler;
-
-    @Override
-    public DriverHandler handler() {
-        return handler;
-    }
-
-    @Override
-    public void setHandler(DriverHandler handler) {
-        this.handler = handler;
-    }
+public class GnmiHandshaker extends AbstractHandlerBehaviour implements DeviceHandshaker {
 
     @Override
     public boolean isReachable() {
-        return true;
+        final GnmiClient client = getClient();
+        return client != null && client.isServerReachable().join();
     }
 
     @Override
     public CompletableFuture<Boolean> probeReachability() {
-        return CompletableFuture.completedFuture(true);
+        final GnmiClient client = getClient();
+        if (client == null) {
+            return CompletableFuture.completedFuture(false);
+        }
+        return client.isServerReachable();
     }
 
     @Override
     public boolean isAvailable() {
-        return true;
+        return isReachable();
     }
 
     @Override
     public CompletableFuture<Boolean> probeAvailability() {
-        return CompletableFuture.completedFuture(true);
+        return probeReachability();
     }
 
     @Override
     public void roleChanged(MastershipRole newRole) {
-        // Not handled
+        throw new UnsupportedOperationException("Mastership operation not supported");
     }
 
     @Override
     public MastershipRole getRole() {
-        return MastershipRole.MASTER;
+        throw new UnsupportedOperationException("Mastership operation not supported");
     }
 
     @Override
     public void addDeviceAgentListener(ProviderId providerId, DeviceAgentListener listener) {
-        // Not handled
+        throw new UnsupportedOperationException("Device agent listener not supported");
     }
 
     @Override
     public void removeDeviceAgentListener(ProviderId providerId) {
-        // Not handled
+        throw new UnsupportedOperationException("Device agent listener not supported");
     }
 
     @Override
     public boolean connect() {
-        // Not handled
-        return false;
+        return getClient() != null;
     }
 
     @Override
     public void disconnect() {
-        // Not handled
-    }
-
-    public boolean isConnected() {
-        return true;
+        // Connection is managed by the controller
     }
 
     @Override
     public boolean hasConnection() {
-        return true;
+        return getClient() != null;
     }
 
-    @Override
-    public DriverData data() {
-        return null;
-    }
-
-    @Override
-    public void setData(DriverData data) {
-        // Not handled
+    private GnmiClient getClient() {
+        GnmiController controller = handler().get(GnmiController.class);
+        DeviceId deviceId = handler().data().deviceId();
+        return controller.getClient(deviceId);
     }
 }
