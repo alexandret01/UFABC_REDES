@@ -71,7 +71,7 @@ public class PadtecDeviceDescription extends AbstractHandlerBehaviour
         // Retorna descrição estática. Em produção, poderia ler /system/state/hostname, etc.
         return new DefaultDeviceDescription(
                 deviceId.uri(),
-                Device.Type.TERMINAL_AMPLIFIER,
+                Device.Type.TERMINAL_DEVICE,
                 "Padtec",
                 "SPVL4",
                 "1.0",
@@ -132,7 +132,7 @@ public class PadtecDeviceDescription extends AbstractHandlerBehaviour
     private GnmiClient getClient() {
         GnmiController controller = handler().get(GnmiController.class);
         DeviceId deviceId = handler().data().deviceId();
-        GnmiClient client = controller.getClient(deviceId);
+        GnmiClient client = controller.get(deviceId);
         if (client == null) {
             log.warn("Cannot get gNMI client for device {}", deviceId);
         }

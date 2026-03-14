@@ -95,6 +95,6 @@ public class GnmiHandshaker extends AbstractHandlerBehaviour implements DeviceHa
     private GnmiClient getClient() {
         GnmiController controller = handler().get(GnmiController.class);
         DeviceId deviceId = handler().data().deviceId();
-        return controller.getClient(deviceId);
+        return controller.get(deviceId);
     }
 }
