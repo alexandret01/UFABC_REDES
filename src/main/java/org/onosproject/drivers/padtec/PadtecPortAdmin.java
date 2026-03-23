@@ -28,4 +28,11 @@ public class PadtecPortAdmin extends AbstractHandlerBehaviour implements PortAdm
         log.info("Request to disable port {} on Padtec device {}", number, handler().data().deviceId());
         return CompletableFuture.completedFuture(false);
     }
+    
+    @Override
+    public CompletableFuture<Boolean> isEnabled(PortNumber number) {
+        log.info("Checking if port {} is enabled on Padtec device {}", number, handler().data().deviceId());
+        // Retorna sempre true ou implementa a chamada real se o equipamento suportar.
+        return CompletableFuture.completedFuture(true);
+    }
 }

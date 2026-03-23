@@ -18,18 +18,18 @@ public class PadtecPowerConfig<T> extends AbstractHandlerBehaviour
     private final Logger log = getLogger(getClass());
 
     @Override
-    public Optional<Long> getTargetPower(PortNumber port, T component) {
+    public Optional<Double> getTargetPower(PortNumber port, T component) {
         log.warn("getTargetPower() is not supported on Padtec read-only driver.");
         return Optional.empty();
     }
 
     @Override
-    public void setTargetPower(PortNumber port, T component, long power) {
+    public void setTargetPower(PortNumber port, T component, double power) {
         log.warn("setTargetPower() is not supported on Padtec read-only driver.");
     }
 
     @Override
-    public Optional<Long> currentPower(PortNumber port, T component) {
+    public Optional<Double> currentPower(PortNumber port, T component) {
         // Como o ganho já foi mapeado como annotation na porta (em PadtecDeviceDescription),
         // uma abordagem robusta seria lê-lo do DeviceService.
         // Aqui simulamos uma leitura baseada no que foi descoberto,
@@ -38,12 +38,12 @@ public class PadtecPowerConfig<T> extends AbstractHandlerBehaviour
         
         log.info("Lendo current power da porta {}", port);
         // Retorna um valor "dummy" seguro caso seja consultado pela GUI óptica do ONOS
-        return Optional.of(15L);
+        return Optional.of(15.0);
     }
 
     @Override
-    public Optional<Long> currentInputPower(PortNumber port, T component) {
+    public Optional<Double> currentInputPower(PortNumber port, T component) {
         log.info("Lendo current input power da porta {}", port);
-        return Optional.of(-5L); // Valor seguro de dBm lido como Long
+        return Optional.of(-5.0); // Valor seguro de dBm lido como Double
     }
 }
