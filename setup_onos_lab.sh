@@ -17,8 +17,8 @@ cd /home/sdn/onos27/onos
 sudo bazel run --host_force_python=PY2 onos-local -- clean &
 ONOS_PID=$!
 
-echo "Aguardando o ONOS subir (45 segundos)..."
-sleep 45
+echo "Aguardando o ONOS subir completamente (90 segundos)..."
+sleep 90
 
 # Volta para o diretório do projeto
 cd "$PROJECT_DIR"
