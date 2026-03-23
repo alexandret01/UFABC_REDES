@@ -1,0 +1,15 @@
+{
+  "devices": {
+    "netconf:172.17.36.22:830": {
+      "netconf": {
+        "ip": "172.17.36.22",
+        "port": 830,
+        "username": "admin",
+        "password": "root"
+      },
+      "basic": {
+        "driver": "polatis-netconf"
+      }
+    }
+  }
+}

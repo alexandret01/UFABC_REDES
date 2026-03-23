@@ -19,31 +19,15 @@
         <behaviour api="org.onosproject.net.optical.OpticalDevice"
                    impl="org.onosproject.net.optical.DefaultOpticalDevice"/>
 
-        <!-- Conectividade gRPC/gNMI -->
+        <!-- Conectividade Básica -->
         <behaviour api="org.onosproject.net.device.DeviceHandshaker"
                    impl="org.onosproject.drivers.padtec.GnmiHandshaker"/>
 
-        <!-- Descoberta de Dispositivo e Portas -->
+        <!-- Descoberta de Dispositivo e Portas (Via Jaquison Logic) -->
         <behaviour api="org.onosproject.net.device.DeviceDescriptionDiscovery"
                    impl="org.onosproject.drivers.padtec.PadtecDeviceDescription"/>
 
-        <!-- Estatísticas de Porta -->
-        <behaviour api="org.onosproject.net.device.PortStatisticsDiscovery"
-                   impl="org.onosproject.drivers.padtec.PadtecDeviceDescription"/>
-
-        <!-- Behaviours não implementados (Stubs) - Descomente se precisar carregar as classes vazias -->
-        <!--
-        <behaviour api="org.onosproject.net.behaviour.LinkDiscovery"
-                   impl="org.onosproject.drivers.padtec.PadtecLinkDiscovery"/>
-        <behaviour api="org.onosproject.net.flow.FlowRuleProgrammable"
-                   impl="org.onosproject.drivers.padtec.PadtecFlowRuleProgrammable"/>
-        <behaviour api="org.onosproject.net.behaviour.PowerConfig"
-                   impl="org.onosproject.drivers.padtec.PadtecPowerConfig"/>
-        <behaviour api="org.onosproject.net.behaviour.LambdaQuery"
-                   impl="org.onosproject.drivers.padtec.PadtecLambdaQuery"/>
-        <behaviour api="org.onosproject.alarm.AlarmConsumer"
-                   impl="org.onosproject.drivers.padtec.PadtecAlarmConsumer"/>
-        -->
+        <!-- Behaviours não implementados ou obsoletos foram desativados para focar no Jaquison -->
 
         <property name="uiType">policon</property>
     </driver>

@@ -19,31 +19,41 @@
         <behaviour api="org.onosproject.net.optical.OpticalDevice"
                    impl="org.onosproject.net.optical.DefaultOpticalDevice"/>
 
-        <!-- Conectividade gRPC/gNMI -->
+        <!-- Conectividade Básica -->
         <behaviour api="org.onosproject.net.device.DeviceHandshaker"
                    impl="org.onosproject.drivers.padtec.GnmiHandshaker"/>
 
-        <!-- Descoberta de Dispositivo e Portas -->
+        <!-- Descoberta de Dispositivo e Portas (Via Jaquison Logic) -->
         <behaviour api="org.onosproject.net.device.DeviceDescriptionDiscovery"
                    impl="org.onosproject.drivers.padtec.PadtecDeviceDescription"/>
 
-        <!-- Estatísticas de Porta -->
+        <!-- Controle de Potência (PowerConfig) -->
+        <behaviour api="org.onosproject.net.behaviour.PowerConfig"
+                   impl="org.onosproject.drivers.padtec.PadtecPowerConfig"/>
+
+        <!-- Estatísticas das Portas (Ganhos e Perdas) -->
         <behaviour api="org.onosproject.net.device.PortStatisticsDiscovery"
                    impl="org.onosproject.drivers.padtec.PadtecDeviceDescription"/>
 
-        <!-- Behaviours não implementados (Stubs) - Descomente se precisar carregar as classes vazias -->
-        <!--
-        <behaviour api="org.onosproject.net.behaviour.LinkDiscovery"
-                   impl="org.onosproject.drivers.padtec.PadtecLinkDiscovery"/>
-        <behaviour api="org.onosproject.net.flow.FlowRuleProgrammable"
-                   impl="org.onosproject.drivers.padtec.PadtecFlowRuleProgrammable"/>
-        <behaviour api="org.onosproject.net.behaviour.PowerConfig"
-                   impl="org.onosproject.drivers.padtec.PadtecPowerConfig"/>
+        <!-- Descobrir Lambdas/Canais disponíveis na fibra -->
         <behaviour api="org.onosproject.net.behaviour.LambdaQuery"
                    impl="org.onosproject.drivers.padtec.PadtecLambdaQuery"/>
+
+        <!-- Controle de Enable/Disable de porta -->
+        <behaviour api="org.onosproject.net.behaviour.PortAdmin"
+                   impl="org.onosproject.drivers.padtec.PadtecPortAdmin"/>
+
+        <!-- Alarmes (Falhas de hardware, LOS, etc) -->
         <behaviour api="org.onosproject.alarm.AlarmConsumer"
                    impl="org.onosproject.drivers.padtec.PadtecAlarmConsumer"/>
-        -->
+
+        <!-- Descoberta de Links (Topologia) -->
+        <behaviour api="org.onosproject.net.behaviour.LinkDiscovery"
+                   impl="org.onosproject.drivers.padtec.PadtecLinkDiscovery"/>
+
+        <!-- Controle de Regras de Fluxo (Read-Only) -->
+        <behaviour api="org.onosproject.net.flow.FlowRuleProgrammable"
+                   impl="org.onosproject.drivers.padtec.PadtecFlowRuleProgrammable"/>
 
         <property name="uiType">policon</property>
     </driver>

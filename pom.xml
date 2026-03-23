@@ -36,22 +36,9 @@
         <scope>provided</scope>
     </dependency>
 
-    <!-- gRPC & gNMI ONOS Protocols -->
     <dependency>
         <groupId>org.onosproject</groupId>
-        <artifactId>onos-protocols-grpc-api</artifactId>
-        <version>${onos.version}</version>
-        <scope>provided</scope>
-    </dependency>
-    <dependency>
-        <groupId>org.onosproject</groupId>
-        <artifactId>onos-protocols-gnmi-api</artifactId>
-        <version>${onos.version}</version>
-        <scope>provided</scope>
-    </dependency>
-    <dependency>
-        <groupId>org.onosproject</groupId>
-        <artifactId>onos-protocols-gnmi-stub</artifactId>
+        <artifactId>onos-apps-alarm-api</artifactId>
         <version>${onos.version}</version>
         <scope>provided</scope>
     </dependency>
@@ -75,32 +62,6 @@
       <groupId>com.google.guava</groupId>
       <artifactId>guava</artifactId>
       <version>28.2-jre</version>
-      <scope>provided</scope>
-    </dependency>
-
-    <!-- gRPC Core -->
-    <dependency>
-      <groupId>io.grpc</groupId>
-      <artifactId>grpc-core</artifactId>
-      <version>1.31.1</version>
-      <scope>provided</scope>
-    </dependency>
-    <dependency>
-      <groupId>io.grpc</groupId>
-      <artifactId>grpc-stub</artifactId>
-      <version>1.31.1</version>
-      <scope>provided</scope>
-    </dependency>
-    <dependency>
-      <groupId>io.grpc</groupId>
-      <artifactId>grpc-netty</artifactId>
-      <version>1.31.1</version>
-      <scope>provided</scope>
-    </dependency>
-    <dependency>
-      <groupId>com.google.protobuf</groupId>
-      <artifactId>protobuf-java</artifactId>
-      <version>3.12.2</version>
       <scope>provided</scope>
     </dependency>
 
@@ -144,11 +105,11 @@
         <configuration>
           <instructions>
             <Bundle-SymbolicName>${project.groupId}.${project.artifactId}</Bundle-SymbolicName>
-            <Export-Package>org.onosproject.drivers.padtec.*</Export-Package>
+            <Export-Package>
+                org.onosproject.drivers.padtec.*
+            </Export-Package>
             <Import-Package>
-                *,org.onosproject.net.driver;version="[2.7,3)",
-                org.onosproject.grpc.api;version="[2.7,3)",
-                org.onosproject.gnmi.api;version="[2.7,3)"
+                *,org.onosproject.net.driver;version="[2.7,3)"
             </Import-Package>
           </instructions>
         </configuration>
