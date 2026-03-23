@@ -36,13 +36,6 @@
         <scope>provided</scope>
     </dependency>
 
-    <dependency>
-        <groupId>org.onosproject</groupId>
-        <artifactId>onos-apps-alarm-api</artifactId>
-        <version>${onos.version}</version>
-        <scope>provided</scope>
-    </dependency>
-
     <!-- Drivers Utilities -->
      <dependency>
         <groupId>org.onosproject</groupId>

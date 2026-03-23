@@ -43,10 +43,6 @@
         <behaviour api="org.onosproject.net.behaviour.PortAdmin"
                    impl="org.onosproject.drivers.padtec.PadtecPortAdmin"/>
 
-        <!-- Alarmes (Falhas de hardware, LOS, etc) -->
-        <behaviour api="org.onosproject.alarm.AlarmConsumer"
-                   impl="org.onosproject.drivers.padtec.PadtecAlarmConsumer"/>
-
         <!-- Descoberta de Links (Topologia) -->
         <behaviour api="org.onosproject.net.behaviour.LinkDiscovery"
                    impl="org.onosproject.drivers.padtec.PadtecLinkDiscovery"/>
