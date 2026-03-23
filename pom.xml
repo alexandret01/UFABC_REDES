@@ -110,7 +110,7 @@
                 org.onosproject.drivers.padtec.*
             </Export-Package>
             <Import-Package>
-                *,org.onosproject.net.driver;version="[2.7,3)"
+                *
             </Import-Package>
           </instructions>
         </configuration>
