@@ -72,6 +72,14 @@
         <version>1.4.0</version>
         <scope>provided</scope>
     </dependency>
+
+    <!-- FIX: Adicionando dependência correta de rede para resolver o onlab.packet -->
+    <dependency>
+        <groupId>org.onosproject</groupId>
+        <artifactId>onlab-misc</artifactId>
+        <version>${onos.version}</version>
+        <scope>provided</scope>
+    </dependency>
   </dependencies>
 
   <build>
@@ -111,6 +119,7 @@
             </Export-Package>
             <Import-Package>
                 !com.google.common.collect,
+                !org.onlab.packet,
                 *
             </Import-Package>
           </instructions>
