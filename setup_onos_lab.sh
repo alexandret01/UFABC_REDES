@@ -59,6 +59,8 @@ if [ -f "padtec-netcfg.json" ]; then
          http://localhost:8181/onos/v1/network/configuration \
          -d @padtec-netcfg.json --user onos:rocks
     echo -e "\n  -> Padtec configurado."
+else
+    echo "  [AVISO] Arquivo padtec-netcfg.json não encontrado no diretório: $PROJECT_DIR"
 fi
 
 # 4. Criar Cross-Connects (antigo add_cross_rest.py)
