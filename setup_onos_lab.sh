@@ -46,19 +46,19 @@ fi
 
 # 3. Carregar o Driver da Padtec
 echo "[3/4] Instalando Driver ONOS Padtec..."
-# Como o comando onos-app pode não estar no PATH do sudo/root, usaremos o caminho absoluto se necessário
-# ou carregaremos o ambiente do ONOS
-export PATH=$PATH:/home/sdn/onos27/onos/tools/package/runtime/bin
+# Envia o driver usando cURL para evitar problemas com o comando onos-app não estar no PATH
+curl -sS -X POST -H "content-type:application/octet-stream" \
+     http://localhost:8181/onos/v1/applications?activate=true \
+     --data-binary @target/onos-drivers-padtec-2.7.0.oar --user onos:rocks
+echo -e "\n  -> Driver Padtec instalado via REST."
 
-if command -v onos-app >/dev/null 2>&1; then
-    onos-app localhost install! target/onos-drivers-padtec-2.7.0.oar
-    echo "  -> Driver Padtec instalado."
-else
-    echo "  [AVISO] Comando 'onos-app' não encontrado no PATH. Tentando via curl..."
-    curl -sS -X POST -H "content-type:application/octet-stream" \
-         http://localhost:8181/onos/v1/applications?activate=true \
-         --data-binary @target/onos-drivers-padtec-2.7.0.oar --user onos:rocks
-    echo -e "\n  -> Driver Padtec instalado via REST."
+# Envia também as configurações de rede do Padtec para ele aparecer na topologia!
+if [ -f "padtec-netcfg.json" ]; then
+    echo "Enviando configurações de rede do Padtec..."
+    curl -sS -X POST -H "content-type:application/json" \
+         http://localhost:8181/onos/v1/network/configuration \
+         -d @padtec-netcfg.json --user onos:rocks
+    echo -e "\n  -> Padtec configurado."
 fi
 
 # 4. Criar Cross-Connects (antigo add_cross_rest.py)
