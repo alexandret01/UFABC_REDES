@@ -45,13 +45,8 @@
         <scope>provided</scope>
     </dependency>
 
-    <!-- ONOS Alarm API -->
-    <dependency>
-        <groupId>org.onosproject</groupId>
-        <artifactId>onos-apps-alarm-api</artifactId>
-        <version>2.7.0</version>
-        <scope>provided</scope>
-    </dependency>
+    <!-- Removido o onos-apps-alarm-api, pois ele não está no Maven Central
+         O Driver voltará a usar o esqueleto vazio para compilar perfeitamente -->
 
     <!-- Drivers Utilities -->
      <dependency>

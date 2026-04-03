@@ -23,7 +23,7 @@
         <behaviour api="org.onosproject.net.device.DeviceHandshaker"
                    impl="org.onosproject.drivers.padtec.GnmiHandshaker"/>
 
-        <!-- Descoberta de Dispositivo e Portas -->
+        <!-- Descoberta de Dispositivo e Portas (Via Jaquison Logic) -->
         <behaviour api="org.onosproject.net.device.DeviceDescriptionDiscovery"
                    impl="org.onosproject.drivers.padtec.PadtecDeviceDescription"/>
 
@@ -50,10 +50,6 @@
         <!-- Controle de Regras de Fluxo (Read-Only) -->
         <behaviour api="org.onosproject.net.flow.FlowRuleProgrammable"
                    impl="org.onosproject.drivers.padtec.PadtecFlowRuleProgrammable"/>
-
-        <!-- Alertas da Placa (Alarm Consumer) -->
-        <behaviour api="org.onosproject.alarm.AlarmConsumer"
-                   impl="org.onosproject.drivers.padtec.PadtecAlarmConsumer"/>
 
         <property name="uiType">policon</property>
     </driver>
