@@ -9,6 +9,7 @@ O projeto utiliza uma **Arquitetura de Middleware Externo via REST API**.
 Isso resolve os antigos conflitos de dependências ("Jar Hell") do motor OSGi (Karaf) do ONOS com o arquivo proprietário `install_gl.jar` da Padtec. 
 * **O Middleware (`PadtecMiddleware.java`)**: Roda de forma independente (standalone) como um microsserviço no Linux, carregando as bibliotecas da Padtec (`br.ufabc.equipment.*`) e ouvindo chamadas HTTP.
 * **O Driver ONOS (`PadtecDeviceDescription.java`)**: Fica acoplado dentro do ONOS, agindo como um cliente REST que consome os dados (FIBER/OCH, Ganhos e LOS) estruturados no padrão JSON gerados pelo Middleware.
+* **Alertas do ONOS (`PadtecAlarmConsumer.java`)**: Fica acoplado dentro do ONOS como um cliente REST, injetando alertas (ex: Loss of Signal) na aba "Alarms" se a placa falhar.
 
 ---
 
@@ -69,12 +70,13 @@ O driver mandará uma requisição para o seu **Middleware (Terminal 1)**, que i
 1. Acesse o painel do ONOS: `http://172.17.36.231:8181/onos/ui` (Usuário: `onos`, Senha: `rocks`).
 2. Na aba **Devices**, o equipamento deverá aparecer listado como `TERMINAL_DEVICE` (Nome: `Padtec-SPVL4`).
 3. Clique no equipamento e em seguida no botão de **Portas** para ver a lista de Amplificadores (FIBER) e Transponders (OCH) lidos em tempo real!
+4. Na aba **Alarms**, se um Transponder físico ficar sem sinal (`LOS = true`), um triângulo crítico aparecerá no painel.
 
 ---
 
 ### Estrutura Final do Repositório
 
-* `/src/main/java/.../padtec` -> Classes do Driver ONOS (Port/Device Discovery, PowerConfig, Handshaker).
-* `/tools` -> Scripts legados, Configurações JSON de Topologia (Polatis/Padtec), e o servidor `PadtecMiddleware.java` que integra o `install_gl.jar`.
+* `/src/main/java/.../padtec` -> Classes do Driver ONOS (Port/Device Discovery, PowerConfig, Handshaker, AlarmConsumer).
+* `/tools` -> Scripts legados, Configurações JSON de Topologia (Polatis/Padtec), arquivo `install_gl.jar` e o servidor `PadtecMiddleware.java` que o integra.
 * `setup_onos_lab.sh` -> O cérebro de implantação contínua (Shell script unificado).
 * `pom.xml` -> Configuração do pacote OSGi otimizada para o Karaf (Java 11).
