@@ -51,6 +51,10 @@
         <behaviour api="org.onosproject.net.flow.FlowRuleProgrammable"
                    impl="org.onosproject.drivers.padtec.PadtecFlowRuleProgrammable"/>
 
+        <!-- Alertas da Placa (Alarm Consumer) -->
+        <behaviour api="org.onosproject.alarm.AlarmConsumer"
+                   impl="org.onosproject.drivers.padtec.PadtecAlarmConsumer"/>
+
         <property name="uiType">policon</property>
     </driver>
 </drivers>
