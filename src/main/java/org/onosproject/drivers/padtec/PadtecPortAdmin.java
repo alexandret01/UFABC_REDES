@@ -19,8 +19,7 @@ public class PadtecPortAdmin extends AbstractHandlerBehaviour implements PortAdm
     @Override
     public CompletableFuture<Boolean> enable(PortNumber number) {
         log.info("Request to enable port {} on Padtec device {}", number, handler().data().deviceId());
-        // Como o foco atual é read-only via Jaquison, não enviamos comandos de escrita reais.
-        return CompletableFuture.completedFuture(false); 
+        return CompletableFuture.completedFuture(false);
     }
 
     @Override

@@ -51,7 +51,7 @@ public class PadtecMiddleware {
             jsonResponse.append("[");
 
             try {
-                // LÓGICA ORIGINAL DO SEU JAQUISON.JAVA
+                // LÓGICA ORIGINAL
                 Supervisor sup = new Supervisor(ip, Supervisor.TypeSupervisor.SPVL);
                 sup.start();
                 

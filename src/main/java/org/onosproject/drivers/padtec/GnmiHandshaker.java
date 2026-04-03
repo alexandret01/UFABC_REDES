@@ -26,13 +26,13 @@ import org.onosproject.net.DeviceId;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Implementation of DeviceHandshaker for Padtec (Jaquison Integration).
+ * Implementation of DeviceHandshaker for Padtec.
  */
 public class GnmiHandshaker extends AbstractHandlerBehaviour implements DeviceHandshaker {
 
     @Override
     public boolean isReachable() {
-        // Na integração do Jaquison, vamos considerar sempre alcançável inicialmente,
+        // Na integração, vamos considerar sempre alcançável inicialmente,
         // ou você poderia implementar um Ping pro IP aqui.
         return true; 
     }

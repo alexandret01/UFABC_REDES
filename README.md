@@ -1,6 +1,6 @@
 # Driver ONOS - Equipamentos Padtec SPVL4 (UFABC)
 
-Este repositório contém o driver ONOS desenvolvido para a UFABC que se comunica de forma nativa com equipamentos ópticos Padtec (placa SPVL4, Transponders OTN, Amplificadores). A lógica de descoberta de equipamentos, antes executada por scripts isolados (como `Jaquison.java`), foi totalmente reestruturada para o ecossistema moderno do ONOS (OSGi).
+Este repositório contém o driver ONOS desenvolvido para a UFABC que se comunica de forma nativa com equipamentos ópticos Padtec (placa SPVL4, Transponders OTN, Amplificadores). A lógica de descoberta de equipamentos, antes executada por scripts isolados, foi totalmente reestruturada para o ecossistema moderno do ONOS (OSGi).
 
 ## Como a Arquitetura Funciona?
 

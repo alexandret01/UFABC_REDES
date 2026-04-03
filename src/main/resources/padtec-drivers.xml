@@ -23,7 +23,7 @@
         <behaviour api="org.onosproject.net.device.DeviceHandshaker"
                    impl="org.onosproject.drivers.padtec.GnmiHandshaker"/>
 
-        <!-- Descoberta de Dispositivo e Portas (Via Jaquison Logic) -->
+        <!-- Descoberta de Dispositivo e Portas -->
         <behaviour api="org.onosproject.net.device.DeviceDescriptionDiscovery"
                    impl="org.onosproject.drivers.padtec.PadtecDeviceDescription"/>
 
