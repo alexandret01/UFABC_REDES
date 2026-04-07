@@ -6,25 +6,35 @@ Este repositório contém o driver ONOS desenvolvido para a UFABC que se comunic
 
 O projeto utiliza uma **Arquitetura de Middleware Externo via REST API**. 
 
-Isso resolve os antigos conflitos de dependências ("Jar Hell") do motor OSGi (Karaf) do ONOS com o arquivo proprietário `install_gl.jar` da Padtec. 
+Isso resolve os antigos conflitos de dependências ("Jar Hell") do motor OSGi (Karaf) do ONOS com os arquivos proprietários (`install_gl.jar`, `snmp4j`, etc) da Padtec. 
 * **O Middleware (`PadtecMiddleware.java`)**: Roda de forma independente (standalone) como um microsserviço no Linux, carregando as bibliotecas da Padtec (`br.ufabc.equipment.*`) e ouvindo chamadas HTTP.
 * **O Driver ONOS (`PadtecDeviceDescription.java`)**: Fica acoplado dentro do ONOS, agindo como um cliente REST que consome os dados (FIBER/OCH, Ganhos e LOS) estruturados no padrão JSON gerados pelo Middleware.
 * **Alertas do ONOS (`PadtecAlarmConsumer.java`)**: Fica acoplado dentro do ONOS como um cliente REST, injetando alertas (ex: Loss of Signal) na aba "Alarms" se a placa falhar.
 
 ---
 
-## 1. Como Iniciar o Middleware (Conexão Física Padtec)
+## 1. Como Compilar e Iniciar o Middleware (Conexão Física Padtec)
 
 Antes do ONOS conectar no equipamento, você precisa colocar o servidor Middleware no ar, pois ele é quem conversa diretamente com a placa física e o `Supervisor`.
 
-1. Abra um terminal na pasta `tools`.
-2. Garanta que o arquivo `install_gl.jar` esteja lá dentro.
-3. Compile e rode o servidor Java informando o classpath:
+1. Recupere a pasta `lib/` original do Jaquison (com os arquivos `snmp4j.jar`, `commons-digester.zip`, etc) e coloque dentro da pasta `tools/`.
+2. Garanta que o arquivo `install_gl.jar` esteja na pasta `tools/`.
+3. A pasta `tools/` deve ter esta estrutura:
+   - `PadtecMiddleware.java`
+   - `install_gl.jar`
+   - `compile_middleware.sh`
+   - `lib/` (com os .jar auxiliares)
+4. Abra um terminal na pasta `tools/`, dê permissão e rode o script de compilação automática:
 
 ```bash
 cd tools
-javac -cp "install_gl.jar:." PadtecMiddleware.java
-java -cp "install_gl.jar:." PadtecMiddleware
+chmod +x compile_middleware.sh
+./compile_middleware.sh
+```
+
+5. Se compilar com sucesso, o script mostrará o comando exato que você deve copiar e colar no terminal para iniciar o servidor. Geralmente é algo como:
+```bash
+java -cp ".:install_gl.jar:lib/snmp4j.jar:lib/commons-digester.zip" PadtecMiddleware
 ```
 *(O console imprimirá: `Middleware Padtec rodando na porta 8080...`)*
 
@@ -77,6 +87,6 @@ O driver mandará uma requisição para o seu **Middleware (Terminal 1)**, que i
 ### Estrutura Final do Repositório
 
 * `/src/main/java/.../padtec` -> Classes do Driver ONOS (Port/Device Discovery, PowerConfig, Handshaker, AlarmConsumer).
-* `/tools` -> Scripts legados, Configurações JSON de Topologia (Polatis/Padtec), arquivo `install_gl.jar` e o servidor `PadtecMiddleware.java` que o integra.
+* `/tools` -> Scripts legados, Configurações JSON de Topologia (Polatis/Padtec), scripts de compilação e o servidor `PadtecMiddleware.java` que integra o `install_gl.jar`.
 * `setup_onos_lab.sh` -> O cérebro de implantação contínua (Shell script unificado).
 * `pom.xml` -> Configuração do pacote OSGi otimizada para o Karaf (Java 11).
