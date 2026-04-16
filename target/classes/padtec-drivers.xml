@@ -27,7 +27,29 @@
         <behaviour api="org.onosproject.net.device.DeviceDescriptionDiscovery"
                    impl="org.onosproject.drivers.padtec.PadtecDeviceDescription"/>
 
-        <!-- Behaviours não implementados ou obsoletos foram desativados para focar no Jaquison -->
+        <!-- Controle de Potência (PowerConfig) -->
+        <behaviour api="org.onosproject.net.behaviour.PowerConfig"
+                   impl="org.onosproject.drivers.padtec.PadtecPowerConfig"/>
+
+        <!-- Estatísticas das Portas (Ganhos e Perdas) -->
+        <behaviour api="org.onosproject.net.device.PortStatisticsDiscovery"
+                   impl="org.onosproject.drivers.padtec.PadtecDeviceDescription"/>
+
+        <!-- Descobrir Lambdas/Canais disponíveis na fibra -->
+        <behaviour api="org.onosproject.net.behaviour.LambdaQuery"
+                   impl="org.onosproject.drivers.padtec.PadtecLambdaQuery"/>
+
+        <!-- Controle de Enable/Disable de porta -->
+        <behaviour api="org.onosproject.net.behaviour.PortAdmin"
+                   impl="org.onosproject.drivers.padtec.PadtecPortAdmin"/>
+
+        <!-- Descoberta de Links (Topologia) -->
+        <behaviour api="org.onosproject.net.behaviour.LinkDiscovery"
+                   impl="org.onosproject.drivers.padtec.PadtecLinkDiscovery"/>
+
+        <!-- Controle de Regras de Fluxo (Read-Only) -->
+        <behaviour api="org.onosproject.net.flow.FlowRuleProgrammable"
+                   impl="org.onosproject.drivers.padtec.PadtecFlowRuleProgrammable"/>
 
         <property name="uiType">policon</property>
     </driver>

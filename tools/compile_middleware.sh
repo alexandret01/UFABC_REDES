@@ -3,8 +3,8 @@
 
 echo "Procurando arquivos .jar na pasta tools e lib..."
 
-# Constrói o classpath (incluindo o diretório atual e todos os jars na pasta e subpasta lib)
-CLASSPATH=".:install_gl.jar"
+# Constrói o classpath (incluindo o diretório atual, pasta src e jars)
+CLASSPATH=".:install_gl.jar:../src/main/java"
 
 # Adiciona todos os .jar do diretório atual, se existirem e não forem o install_gl
 for jar in *.jar; do

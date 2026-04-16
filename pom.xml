@@ -126,6 +126,9 @@
                 !org.onlab.packet,
                 !org.onosproject.net,
                 !org.onosproject.net.driver,
+                !org.onosproject.net.behaviour,
+                !org.onosproject.net.device,
+                !org.onosproject.net.provider,
                 *
             </Import-Package>
           </instructions>

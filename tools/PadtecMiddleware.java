@@ -13,7 +13,6 @@ import br.com.padtec.v3.data.ne.Amplifier;
 import br.com.padtec.v3.data.ne.Transponder;
 import br.com.padtec.v3.data.ne.TrpOTNTerminal;
 import br.ufabc.equipment.Amplifiers;
-import br.ufabc.equipment.OTNTransponder;
 import br.ufabc.equipment.Supervisor;
 import br.ufabc.equipment.Transponders;
 

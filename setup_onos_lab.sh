@@ -23,6 +23,34 @@ sleep 90
 # Volta para o diretório do projeto
 cd "$PROJECT_DIR"
 
+# 1.5 Carregar apps essenciais do ONOS
+echo "[1.5/4] Ativando aplicações base do ONOS (Optical, Netconf, Polatis)..."
+ONOS_IP="127.0.0.1"
+AUTH="onos:rocks"
+
+APPS=(
+  "org.onosproject.openflow"
+  "org.onosproject.proxyarp"
+  "org.onosproject.layout"
+  "org.onosproject.fwd"
+  "org.onosproject.openflow-base"
+  "org.onosproject.openflow-message"
+  "org.onosproject.ofagent"
+  "org.onosproject.drivers"
+  "org.onosproject.optical-model"
+  "org.onosproject.optical-rest"
+  "org.onosproject.drivers.optical"
+  "org.onosproject.netconf"
+  "org.onosproject.drivers.polatis.netconf"
+  "org.onosproject.drivers.polatis.openflow"
+)
+
+for app in "${APPS[@]}"; do
+  echo "  -> Ativando: $app"
+  curl -sS -X POST -u "$AUTH" "http://$ONOS_IP:8181/onos/v1/applications/$app/active"
+done
+echo ""
+
 # 2. Carregar configurações da Rede via REST API (OXC Polatis)
 echo "[2/4] Enviando configurações Netconf para os Switches Polatis..."
 
