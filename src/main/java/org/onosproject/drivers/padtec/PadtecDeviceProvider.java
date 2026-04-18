@@ -49,14 +49,15 @@ public class PadtecDeviceProvider implements DeviceProvider {
         providerService = providerRegistry.register(this);
         log.info("Padtec Device Provider Started");
 
-        // Injeta o dispositivo no ONOS com um pequeno delay para garantir 
-        // que o subsistema de drivers já carregou o padtec-drivers.xml
+        // Injeta o dispositivo no ONOS com um delay maior (30s) para garantir 
+        // que o ONOS tenha terminado de descobrir os outros switches (Polatis) e 
+        // carregado o padtec-drivers.xml com folga.
         new Timer().schedule(new TimerTask() {
             @Override
             public void run() {
                 injectDevice();
             }
-        }, 5000);
+        }, 30000);
     }
 
     private void injectDevice() {
