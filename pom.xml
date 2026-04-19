@@ -12,8 +12,6 @@
   <name>Padtec ONOS Driver</name>
   <description>ONOS device driver bundle for Padtec devices</description>
 
-  <!-- IMPORTANT: These properties define the app name in ONOS.
-       If this is missing or incorrect, ONOS refuses to save the app! -->
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <maven.compiler.source>11</maven.compiler.source>
@@ -30,7 +28,6 @@
   </properties>
 
   <dependencies>
-    <!-- ONOS API -->
     <dependency>
       <groupId>org.onosproject</groupId>
       <artifactId>onos-api</artifactId>
@@ -45,10 +42,6 @@
         <scope>provided</scope>
     </dependency>
 
-    <!-- Removido o onos-apps-alarm-api, pois ele não está no Maven Central
-         O Driver voltará a usar o esqueleto vazio para compilar perfeitamente -->
-
-    <!-- Drivers Utilities -->
      <dependency>
         <groupId>org.onosproject</groupId>
         <artifactId>onos-drivers-utilities</artifactId>
@@ -56,7 +49,6 @@
         <scope>provided</scope>
      </dependency>
 
-    <!-- Third party -->
     <dependency>
       <groupId>org.slf4j</groupId>
       <artifactId>slf4j-api</artifactId>
@@ -112,8 +104,9 @@
 
       <plugin>
         <groupId>org.apache.felix</groupId>
+        <!-- AQUI FOI ATUALIZADO PARA 4.2.1 PARA RECONHECER O JAVA 11 -->
         <artifactId>maven-bundle-plugin</artifactId>
-        <version>3.5.0</version>
+        <version>4.2.1</version>
         <extensions>true</extensions>
         <configuration>
           <instructions>
@@ -121,23 +114,10 @@
             <Export-Package>
                 org.onosproject.drivers.padtec.*
             </Export-Package>
-            <Require-Capability>
-                osgi.ee;filter:="(&amp;(osgi.ee=JavaSE)(version=11))"
-            </Require-Capability>
             <Import-Package>
                 !com.google.common.collect,
-                !org.onlab.packet,
-                !org.onosproject.net,
-                !org.onosproject.net.driver,
-                !org.onosproject.net.behaviour,
-                !org.onosproject.net.device,
-                !org.onosproject.net.provider,
-                !org.onosproject.net.flow,
-                !org.onosproject.net.statistic,
-                !org.onosproject.net.topology,
-                !org.onosproject.net.link,
-                !org.onosproject.net.optical,
-                !org.onosproject.ui,
+                org.onosproject.*;version="[2.7,4.0)",
+                org.onlab.*;version="[2.7,4.0)",
                 *
             </Import-Package>
           </instructions>
