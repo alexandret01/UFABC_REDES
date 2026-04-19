@@ -57,7 +57,6 @@ Para não precisar rodar vários comandos na mão para levantar a rede (ONOS + P
 Em um NOVO terminal (mantendo o Middleware rodando no terminal anterior), vá para a raiz do projeto e rode:
 
 ```bash
-sudo killall java  # Garante que não há instâncias zumbis do ONOS travando portas
 sudo ./setup_onos_lab.sh
 ```
 
