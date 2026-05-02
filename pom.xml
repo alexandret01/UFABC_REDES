@@ -27,6 +27,20 @@
     <dependency><groupId>org.osgi</groupId><artifactId>org.osgi.service.component.annotations</artifactId><version>1.4.0</version><scope>provided</scope></dependency>
     <dependency><groupId>org.onosproject</groupId><artifactId>onlab-misc</artifactId><version>${onos.version}</version><scope>provided</scope></dependency>
     <dependency><groupId>com.fasterxml.jackson.core</groupId><artifactId>jackson-databind</artifactId><version>2.10.2</version><scope>provided</scope></dependency>
+
+    <!-- Dependências do TailEndController que serão embutidas -->
+    <dependency>
+        <groupId>commons-collections</groupId>
+        <artifactId>commons-collections</artifactId>
+        <version>3.2.2</version>
+        <scope>compile</scope>
+    </dependency>
+    <dependency>
+        <groupId>commons-digester</groupId>
+        <artifactId>commons-digester</artifactId>
+        <version>1.8.1</version>
+        <scope>compile</scope>
+    </dependency>
   </dependencies>
   <build>
     <plugins>
@@ -60,14 +74,11 @@
                 org.onosproject.drivers.padtec.*
             </Export-Package>
             <Import-Package>
-                !com.google.common.collect,
-                org.onosproject.net.optical;version="[2.7,4.0)",
-                org.onosproject.net.optical.device;version="[2.7,4.0)",
-                org.onosproject.*;version="[2.7,4.0)",
-                org.onlab.packet;version="[2.7,4.0)",
-                org.onlab.*;version="[2.7,4.0)",
                 *
             </Import-Package>
+            <Embed-Dependency>
+                commons-collections,commons-digester;scope=compile|runtime
+            </Embed-Dependency>
           </instructions>
         </configuration>
       </plugin>

@@ -24,4 +24,20 @@ public class Amplifiers {
     public double getGain() {
         return 15.5; // Stub gain
     }
+
+    public double getPowerInput() {
+        return -5.0;
+    }
+
+    public double getPowerOutput() {
+        return 10.5;
+    }
+
+    public boolean isAGC() {
+        return true;
+    }
+
+    public boolean isLOS() {
+        return false;
+    }
 }

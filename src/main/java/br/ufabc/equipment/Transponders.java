@@ -28,4 +28,16 @@ public class Transponders {
     public boolean isLOS() {
         return false; // Stub Loss of Signal
     }
+
+    public double getInputPower() {
+        return -10.0;
+    }
+
+    public double getOutputPower() {
+        return 5.0;
+    }
+
+    public double getLambda() {
+        return 1550.12;
+    }
 }
