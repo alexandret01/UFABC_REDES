@@ -26,138 +26,95 @@ import org.onosproject.net.Port;
 import org.onosproject.net.PortNumber;
 import org.onosproject.net.device.DefaultDeviceDescription;
 import org.onosproject.net.device.DefaultPortDescription;
-import org.onosproject.net.device.DefaultPortStatistics;
 import org.onosproject.net.device.DeviceDescription;
 import org.onosproject.net.device.DeviceDescriptionDiscovery;
-import org.onosproject.net.device.PortDescription;
-import org.onosproject.net.device.PortStatistics;
-import org.onosproject.net.device.PortStatisticsDiscovery;
 import org.onosproject.net.driver.AbstractHandlerBehaviour;
 import org.onlab.packet.ChassisId;
 import org.slf4j.Logger;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
-import java.net.Socket;
-import java.util.Collection;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.List;
 
 import static org.slf4j.LoggerFactory.getLogger;
 
 /**
- * Driver implementation for Padtec devices integrating External Middleware logic.
+ * Driver para Padtec que consome dados de um Agente HTTP externo.
  */
 public class PadtecDeviceDescription extends AbstractHandlerBehaviour 
-        implements DeviceDescriptionDiscovery, PortStatisticsDiscovery {
+        implements DeviceDescriptionDiscovery {
 
     private final Logger log = getLogger(getClass());
-
-    // IP de loopback onde o Agente do Jaquison está rodando (via monitor.sh)
-    private static final String AGENT_IP = "127.0.0.1";
-    // A porta que vimos no arquivo PadtecAgentServer.java
-    private static final int AGENT_PORT = 10151;
+    private static final String AGENT_URL = "http://127.0.0.1:10151/get-metrics";
 
     @Override
     public DeviceDescription discoverDeviceDetails() {
-        log.info("Discovering Padtec device details via Jaquison Agent...");
         DeviceId deviceId = handler().data().deviceId();
-        
         return new DefaultDeviceDescription(
-                deviceId.uri(),
-                Device.Type.TERMINAL_DEVICE,
-                "Padtec",
-                "SPVL4",
-                "1.0",
-                "Jaquison",
-                new ChassisId(),
-                true,
-                DefaultAnnotations.EMPTY);
+                deviceId.uri(), Device.Type.TERMINAL_DEVICE, "Padtec", "SPVL4", "1.0",
+                "Agente-Padtec", new ChassisId(), true, DefaultAnnotations.EMPTY);
     }
 
     @Override
     public List<PortDescription> discoverPortDetails() {
-        log.info("Discovering ports on Padtec device via TCP Agent na porta {}...", AGENT_PORT);
-        DeviceId deviceId = handler().data().deviceId();
+        log.info("Buscando portas do Padtec no Agente Externo: {}", AGENT_URL);
         List<PortDescription> ports = Lists.newArrayList();
 
         try {
-            // Conecta via TCP (Socket) no PadtecAgentServer (que o Jaquison inicia)
-            log.debug("Tentando conectar no Socket {}:{}", AGENT_IP, AGENT_PORT);
-            Socket socket = new Socket(AGENT_IP, AGENT_PORT);
-            
-            // O Agente no PadtecAgentServer.java apenas despeja (out.println) a string JSON
-            // assim que a conexão é aceita, e depois fecha a conexão.
-            BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-            StringBuilder jsonResponse = new StringBuilder();
-            String line;
-            while ((line = reader.readLine()) != null) {
-                jsonResponse.append(line);
-            }
-            reader.close();
-            socket.close();
-            
-            String json = jsonResponse.toString();
-            log.info("Agente Padtec respondeu: {}", json);
+            URL url = new URL(AGENT_URL);
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            conn.setConnectTimeout(5000);
 
-            // Parsing do JSON que o PadtecMonitorJSON3 gerou
-            if (json == null || json.trim().isEmpty() || json.equals("{}")) {
-                log.warn("Agente Padtec retornou um JSON vazio. As portas ainda não foram carregadas pelo Jaquison?");
-                return ports; // Retorna vazio
+            if (conn.getResponseCode() != 200) {
+                log.error("Falha ao conectar no Agente Padtec. Código HTTP: {}", conn.getResponseCode());
+                return ports;
             }
 
+            BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+            String json = reader.readLine();
+            log.info("Agente respondeu com JSON: {}", json);
+            
             ObjectMapper mapper = new ObjectMapper();
             JsonNode rootNode = mapper.readTree(json);
-            
             JsonNode devicesNode = rootNode.path("devices");
+
             if (devicesNode.isArray()) {
                 long portCounter = 1;
-                
                 for (JsonNode deviceNode : devicesNode) {
-                    String type = deviceNode.path("type").asText("");
-                    String name = deviceNode.path("name").asText("Unknown");
+                    String type = deviceNode.path("type").asText();
+                    String name = deviceNode.path("name").asText("N/A");
                     JsonNode metrics = deviceNode.path("metrics");
-                    
+
                     if (type.equals("Amplifier")) {
-                        double gain = metrics.path("gain").asDouble(0.0);
-                        
                         ports.add(DefaultPortDescription.builder()
-                            .withPortNumber(PortNumber.portNumber(portCounter++))
-                            .isEnabled(true)
-                            .type(Port.Type.FIBER)
-                            .annotations(DefaultAnnotations.builder()
-                                .set("neName", name)
-                                .set("gain", String.valueOf(gain))
-                                .build())
-                            .build());
-                            
-                    } else if (type.equals("Transponder") || type.equals("OTNTransponder")) {
-                        String channel = metrics.path("channel").asText("");
-                        boolean isLos = metrics.path("isLOS").asBoolean(false);
-                        
+                                .withPortNumber(PortNumber.portNumber(portCounter++))
+                                .isEnabled(true)
+                                .type(Port.Type.FIBER)
+                                .annotations(DefaultAnnotations.builder()
+                                        .set("neName", name)
+                                        .set("gain", metrics.path("gain").asText("0.0"))
+                                        .build())
+                                .build());
+                    } else if (type.equals("Transponder")) {
                         ports.add(DefaultPortDescription.builder()
-                            .withPortNumber(PortNumber.portNumber(portCounter++))
-                            .isEnabled(!isLos) // Loss of Signal
-                            .type(Port.Type.OCH)
-                            .annotations(DefaultAnnotations.builder()
-                                .set("neName", name)
-                                .set("channel", channel)
-                                .build())
-                            .build());
+                                .withPortNumber(PortNumber.portNumber(portCounter++))
+                                .isEnabled(!metrics.path("isLOS").asBoolean(false))
+                                .type(Port.Type.OCH)
+                                .annotations(DefaultAnnotations.builder()
+                                        .set("neName", name)
+                                        .set("channel", metrics.path("channel").asText("N/A"))
+                                        .build())
+                                .build());
                     }
                 }
             }
-
+            conn.disconnect();
         } catch (Exception e) {
-            log.error("Erro na comunicação via TCP Socket com o Agente Padtec: ", e);
+            log.error("Erro crítico ao comunicar com o Agente Padtec: ", e);
         }
-
         return ports;
-    }
-
-    @Override
-    public Collection<PortStatistics> discoverPortStatistics() {
-        // Implementação simplificada baseada no mesmo Agent
-        List<PortStatistics> statsList = Lists.newArrayList();
-        return statsList;
     }
 }
