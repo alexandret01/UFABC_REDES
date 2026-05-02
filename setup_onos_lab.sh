@@ -16,8 +16,9 @@ if [ -d "$PROJECT_DIR/tools/TailEndController" ]; then
     echo "[0/4] Iniciando o Agente Padtec (TailEndController) em background usando Java 18..."
     cd "$PROJECT_DIR/tools/TailEndController"
 
-    # Compila o PadtecMonitorJSON3 garantindo que enxergue a pasta lib e os pacotes br usando o Javac 18
-    /usr/lib/jvm/jdk-18.0.2.1/bin/javac -cp "./lib/*:." PadtecMonitorJSON3.java PadtecAgentServer.java
+    # Usa o novo script de compilação em bloco para evitar pacotes "not found"
+    chmod +x compile_agent.sh
+    ./compile_agent.sh
 
     # Roda em background usando estritamente o Java 18
     nohup /usr/lib/jvm/jdk-18.0.2.1/bin/java -Dorg.apache.logging.log4j.level=INFO -Djava.library.path=./lib/ -cp "./lib/*:." PadtecMonitorJSON3 > padtec_agent.log 2>&1 &
