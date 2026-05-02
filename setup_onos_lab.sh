@@ -11,6 +11,22 @@ echo "========================================="
 echo "  Iniciando Setup do Laboratório ONOS"
 echo "========================================="
 
+# 0. Ligar o Agente de Leitura do Padtec (TailEndController)
+if [ -d "$PROJECT_DIR/tools/TailEndController" ]; then
+    echo "[0/4] Iniciando o Agente Padtec (TailEndController) em background..."
+    cd "$PROJECT_DIR/tools/TailEndController"
+
+    # Roda o script de monitoramento original que levanta o Agente (PadtecMonitorJSON3)
+    chmod +x monitor.sh
+    nohup ./monitor.sh > padtec_agent.log 2>&1 &
+    PADTEC_PID=$!
+
+    echo "  -> Agente Padtec iniciado na porta 10151 (PID: $PADTEC_PID)."
+    cd "$PROJECT_DIR"
+else
+    echo "  [AVISO] Pasta tools/TailEndController não encontrada. O ONOS não conseguirá ler as portas da Padtec."
+fi
+
 # 1. Iniciar o ONOS
 echo "[1/4] Iniciando o ONOS com Bazel..."
 cd /home/sdn/onos27/onos
@@ -74,13 +90,13 @@ fi
 
 # 3. Carregar o Driver da Padtec
 echo "[3/4] Instalando Driver ONOS Padtec..."
-# Envia o driver usando cURL para evitar problemas com o comando onos-app não estar no PATH
+# Envia o driver usando cURL
 curl -sS -X POST -H "content-type:application/octet-stream" \
      http://localhost:8181/onos/v1/applications?activate=true \
      --data-binary @target/onos-drivers-padtec-2.7.0.oar --user onos:rocks
 echo -e "\n  -> Driver Padtec instalado via REST."
 
-# Envia também as configurações de rede do Padtec para ele aparecer na topologia!
+# Envia também as configurações de rede do Padtec para ele aparecer na topologia
 if [ -f "padtec-netcfg.json" ]; then
     echo "Enviando configurações de rede do Padtec..."
     curl -sS -X POST -H "content-type:application/json" \
@@ -103,8 +119,10 @@ fi
 echo "========================================="
 echo " Setup concluído com sucesso!"
 echo " Acesse a interface web: http://172.17.36.231:8181/onos/ui"
-echo " (Para parar o ONOS, encerre este script com Ctrl+C)"
+echo " (Para parar o ONOS e o Agente Padtec, encerre este script com Ctrl+C)"
 echo "========================================="
 
-# Mantém o script rodando enquanto o ONOS estiver ativo
+# Mantém o script rodando enquanto o ONOS estiver ativo e garante
+# que ao dar Ctrl+C, o Agente Padtec também seja desligado.
+trap "kill $PADTEC_PID" EXIT
 wait $ONOS_PID

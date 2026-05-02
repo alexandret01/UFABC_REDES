@@ -1,0 +1,23 @@
+private void setFan(Fan_Impl fan, TLV pacote) {
+    byte data[] = pacote.getValue();
+    int code = (int) Functions.b2l(pacote.getType(), 0, 2);
+    TypeGet trap = TypeGet.getType(code);
+    if (trap != null) {
+      response.registerArrival(code, fan.getSerial());
+      switch (trap) {
+
+
+      case FAN_GET_BASIC_FRAME:
+fan.?etMaxTemperature			| Generator.getMaxTemperature	| data 6 0.0625
+fan.?etTemperature				| Generator.getTemperature		| data 7 0.0625
+fan.?etVelocityControl			| Generator.getBit				| data 9 4
+fan.?etVelocityPercentual		| Generator.getInt				| data 10
+        break;
+
+
+      }
+    } else {
+      log.warning("Response [" + Functions.getHexa(pacote.getType(), 0, 2)
+          + "] Not Found From " + fan.getSerial().toShortString());
+    }
+  }

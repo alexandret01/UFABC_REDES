@@ -1,0 +1,116 @@
+/*--------------------------RESPONSE------------------------------*/
+
+case TRT_GET_DATA: //0x0044
+	tTerm.?etLof             | Generator.getBit | data 4 2
+	break;
+case TRT_GET_DATA_CLIENT: //0x0064
+	tTerm.?etLof2             | Generator.getBit | data 4 6
+    break;
+case TRT_GET_OTN: //0x00C0
+	tTerm.?etFramesOTN                  | Generator.getBigInteger | data tTerm.getFramesOTN() 4 4
+	tTerm.?etFixedBits                   | Generator.getBigInteger | data tTerm.getFixedBits() 16 5
+	tTerm.?etErroredBlocks				 | Generator.getBigInteger | data tTerm.getErroredBlocks() 20 4
+	tTerm.?etBip8_ODUk                   | Generator.getBigInteger | data tTerm.getBip8_ODUk() 24 4
+	tTerm.?etBei_ODUk                    | Generator.getBigInteger | data tTerm.getBei_ODUk() 28 4
+	tTerm.?etBip8_OTUk                   | Generator.getBigInteger | data tTerm.getBip8_OTUk() 32 4
+	tTerm.?etBei_OTUk                    | Generator.getBigInteger | data tTerm.getBei_OTUk() 36 4
+	tTerm.?etBdi_ODUk                    | Generator.getBit        | data 40 1
+	tTerm.?etBdi_OTUk                    | Generator.getBit        | data 40 0
+	tTerm.?etAutoLaserOff2               | Generator.getBit        | data 41 7
+	tTerm.?etAutoLaserOff                | Generator.getBit        | data 41 6
+	tTerm.?etRate                        | Generator.getRate       | data 41
+	break;
+case TRT_GET_POWER_CLIENT: //0x0043
+	tTerm.?etPin2               | Generator.getPot10G        | data 0 1 4 4 6 4 true
+	tTerm.?etPout2              | Generator.getPot10G        | data 0 1 4 4 6 4 false
+    break;
+case TRT_GET_POWER_OTN: //0x0023
+	tTerm.?etPin                | Generator.getPot10G        | data 0 1 4 4 6 4 true
+	tTerm.?etPout               | Generator.getPot10G        | data 0 1 4 4 6 4 false
+    break;
+case TRT_GET_TABLE: //0x0054
+	tTerm.getOpticalWDMInterface_Impl().?etLambdaNominal           | Generator.getLambda        | data 1
+	tTerm.getOpticalWDMInterface_Impl().?etLambdaReal       | Generator.getRealLambda    | data 1 tTerm.getOpticalWDMInterface_Impl().getLambdaNominal() 100.0
+	tTerm.getOpticalWDMInterface_Impl().?etChannel          | Generator.getChannelDWDM   | data 0
+	tTerm.getOpticalWDMInterface_Impl().?etPin              | Generator.getPot10G        | data 6 1 4 10 6 4 true
+	tTerm.getOpticalWDMInterface_Impl().?etPout             | Generator.getPot10G        | data 6 1 4 10 6 4 false
+	if (tTerm.getOpticalWDMInterface_Impl().isLaserOff()) {
+		tTerm.getOpticalWDMInterface_Impl().setPout(Double.NaN);
+	}
+	if (tTerm.getOpticalWDMInterface_Impl().isLos()) {
+		tTerm.getOpticalWDMInterface_Impl().setPin(Double.NaN);
+	}
+    break;
+case TRT_GET_TABLE_CLIENT: //0x0074
+	tTerm.getOpticalClientInterface_Impl().?etLambdaNominal           | Generator.getLambda        | data 1
+	tTerm.getOpticalClientInterface_Impl().?etLambdaReal       | Generator.getRealLambda    | data 1 tTerm.getOpticalClientInterface_Impl().getLambdaNominal() 100.0
+	tTerm.getOpticalClientInterface_Impl().?etChannel          | Generator.getChannelDWDM   | data 0
+	tTerm.getOpticalClientInterface_Impl().?etPin              | Generator.getPot10G        | data 6 1 4 10 6 4 true
+	tTerm.getOpticalClientInterface_Impl().?etPout             | Generator.getPot10G        | data 6 1 4 10 6 4 false
+	if (tTerm.getOpticalClientInterface_Impl().isLaserOff()) {
+		tTerm.getOpticalClientInterface_Impl().setPout(Double.NaN);
+	}
+	if (tTerm.getOpticalClientInterface_Impl().isLos()) {
+		tTerm.getOpticalClientInterface_Impl().setPin(Double.NaN);
+	}
+    break;
+case TRT_GET_VENDOR_DATA_MSA300_CLIENT: //0x0057
+	//msa300b.?etSupplierId      |	Generator.getInt   		| data 0
+	//msa300b.?etModuleType      |	Generator.getInt		| data 1
+	//msa300b.?etRevision        |	Generator.getString  	| data 2 16
+	//msa300b.?etSerialNumber    |	Generator.getString		| data 18 15
+	//msa300b.?etManufactureDate |	Generator.getString		| data 34 8
+	//msa300b.?etPartNumber      |	Generator.getString		| data 42 16
+	//msa300b.?etItuChannel      |	Functions.getSubarray	| data 58 3
+    break;
+case TRT_GET_VENDOR_DATA_MSA300_OTN: //0x0056
+	//msa300a.?etSupplierId      |	Generator.getInt   		| data 0
+	//msa300a.?etModuleType      |	Generator.getInt		| data 1
+	//msa300a.?etRevision        |	Generator.getString  	| data 2 16
+	//msa300a.?etSerialNumber    |	Generator.getString		| data 18 15
+	//msa300a.?etManufactureDate |	Generator.getString		| data 34 8
+	//msa300a.?etPartNumber      |	Generator.getString		| data 42 16
+	//msa300a.?etItuChannel      |	Functions.getSubarray	| data 58 3
+    break;
+
+/*--------------------------FLAGS------------------------------*/
+
+case TRT_TRAP_ODU_TTI: //0X000E
+/* Nao implementado */
+	break;
+case TRT_TRAP_OTU_TTI: //0X000F
+/* Nao implementado */
+    break;
+case TRT_TRAP_ODU_TTI_OP_SPEC: //0X0021
+/* Nao implementado */
+    break;
+case TRT_TRAP_ODU_TTI_OP_SPEC_REF_TX: //0X0023
+//	u_int32_t rxPower;                    	// byte [0-3] - Potência de entrada da interface OTN
+//	u_int32_t txPower;                     	// byte [4-7] - Potência de saída da interface OTN
+    break;
+case TRT_TRAP_OTU_TTI_OP_SPEC_REF_TX: //0X0024
+/* Nao implementado */
+    break;
+case TRT_TRAP_ODU_TTI_REF_RX: //0X0018
+/* Nao implementado */
+    break;
+case TRT_TRAP_OTU_TTI_REF_RX: //0X001A
+/* Nao implementado */
+    break;
+case TRT_TRAP_ODU_TTI_REF_TX: //0X0017
+/* Nao implementado */
+    break;
+case TRT_TRAP_OTU_TTI_REF_TX: //0X0019
+/* Nao implementado */
+	break;
+case TRT_TRAP_OTU_TTI_OP_SPEC: //0X0022
+/* Nao implementado */
+    break;
+case TRT_TRAP_PT: //0X0010
+/* Nao implementado */
+	break;
+case TRT_TRAP_STAT: //0X0014
+/* Nao implementado */
+    break;
+case TRT_TRAP_J0: //0X000D
+	break;

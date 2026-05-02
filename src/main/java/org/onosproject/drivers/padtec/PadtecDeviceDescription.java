@@ -16,6 +16,8 @@
 
 package org.onosproject.drivers.padtec;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Lists;
 import org.onosproject.net.DefaultAnnotations;
 import org.onosproject.net.Device;
@@ -36,10 +38,8 @@ import org.slf4j.Logger;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
-import java.net.HttpURLConnection;
-import java.net.URL;
+import java.net.Socket;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 
 import static org.slf4j.LoggerFactory.getLogger;
@@ -52,12 +52,14 @@ public class PadtecDeviceDescription extends AbstractHandlerBehaviour
 
     private final Logger log = getLogger(getClass());
 
-    // URL do Middleware Externo (que você subirá separadamente)
-    private static final String MIDDLEWARE_URL = "http://localhost:8080/api/padtec/ports";
+    // IP de loopback onde o Agente do Jaquison está rodando (via monitor.sh)
+    private static final String AGENT_IP = "127.0.0.1";
+    // A porta que vimos no arquivo PadtecAgentServer.java
+    private static final int AGENT_PORT = 10151;
 
     @Override
     public DeviceDescription discoverDeviceDetails() {
-        log.info("Discovering Padtec device details via External Middleware...");
+        log.info("Discovering Padtec device details via Jaquison Agent...");
         DeviceId deviceId = handler().data().deviceId();
         
         return new DefaultDeviceDescription(
@@ -66,7 +68,7 @@ public class PadtecDeviceDescription extends AbstractHandlerBehaviour
                 "Padtec",
                 "SPVL4",
                 "1.0",
-                "Middleware-Integrated",
+                "Jaquison",
                 new ChassisId(),
                 true,
                 DefaultAnnotations.EMPTY);
@@ -74,65 +76,79 @@ public class PadtecDeviceDescription extends AbstractHandlerBehaviour
 
     @Override
     public List<PortDescription> discoverPortDetails() {
-        log.info("Discovering ports on Padtec device via Middleware HTTP API...");
+        log.info("Discovering ports on Padtec device via TCP Agent na porta {}...", AGENT_PORT);
         DeviceId deviceId = handler().data().deviceId();
-        String ip = deviceId.uri().getSchemeSpecificPart();
-
         List<PortDescription> ports = Lists.newArrayList();
 
         try {
-            // Faz a chamada HTTP para o Middleware Java
-            URL url = new URL(MIDDLEWARE_URL + "?ip=" + ip);
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod("GET");
-            conn.setConnectTimeout(5000); // 5 segundos
+            // Conecta via TCP (Socket) no PadtecAgentServer (que o Jaquison inicia)
+            log.debug("Tentando conectar no Socket {}:{}", AGENT_IP, AGENT_PORT);
+            Socket socket = new Socket(AGENT_IP, AGENT_PORT);
             
-            if (conn.getResponseCode() == 200) {
-                BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-                StringBuilder jsonResponse = new StringBuilder();
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    jsonResponse.append(line);
-                }
-                reader.close();
-                
-                String json = jsonResponse.toString();
-                log.info("Middleware respondeu: {}", json);
-
-                // ==============================================================
-                // Parsing manual simples do JSON mockado retornado pelo Middleware
-                // (Em produção, o ONOS usa o Jackson Mapper para isso de forma limpa)
-                // O JSON é no formato: [{"portNumber": 1, "name": "Amp-01", ...}]
-                // ==============================================================
-                
-                // Simulação da leitura de 2 portas baseada no JSON que construí no Middleware
-                ports.add(DefaultPortDescription.builder()
-                    .withPortNumber(PortNumber.portNumber(1))
-                    .isEnabled(true)
-                    .type(Port.Type.FIBER)
-                    .annotations(DefaultAnnotations.builder()
-                        .set("neName", "Amp-01")
-                        .set("gain", "15.5")
-                        .build())
-                    .build());
-
-                ports.add(DefaultPortDescription.builder()
-                    .withPortNumber(PortNumber.portNumber(2))
-                    .isEnabled(true)
-                    .type(Port.Type.OCH)
-                    .annotations(DefaultAnnotations.builder()
-                        .set("neName", "Transponder-01")
-                        .set("channel", "CH-1")
-                        .build())
-                    .build());
-
-            } else {
-                log.warn("Middleware HTTP retornou erro {}", conn.getResponseCode());
+            // O Agente no PadtecAgentServer.java apenas despeja (out.println) a string JSON
+            // assim que a conexão é aceita, e depois fecha a conexão.
+            BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            StringBuilder jsonResponse = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                jsonResponse.append(line);
             }
-            conn.disconnect();
+            reader.close();
+            socket.close();
+            
+            String json = jsonResponse.toString();
+            log.info("Agente Padtec respondeu: {}", json);
+
+            // Parsing do JSON que o PadtecMonitorJSON3 gerou
+            if (json == null || json.trim().isEmpty() || json.equals("{}")) {
+                log.warn("Agente Padtec retornou um JSON vazio. As portas ainda não foram carregadas pelo Jaquison?");
+                return ports; // Retorna vazio
+            }
+
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode rootNode = mapper.readTree(json);
+            
+            JsonNode devicesNode = rootNode.path("devices");
+            if (devicesNode.isArray()) {
+                long portCounter = 1;
+                
+                for (JsonNode deviceNode : devicesNode) {
+                    String type = deviceNode.path("type").asText("");
+                    String name = deviceNode.path("name").asText("Unknown");
+                    JsonNode metrics = deviceNode.path("metrics");
+                    
+                    if (type.equals("Amplifier")) {
+                        double gain = metrics.path("gain").asDouble(0.0);
+                        
+                        ports.add(DefaultPortDescription.builder()
+                            .withPortNumber(PortNumber.portNumber(portCounter++))
+                            .isEnabled(true)
+                            .type(Port.Type.FIBER)
+                            .annotations(DefaultAnnotations.builder()
+                                .set("neName", name)
+                                .set("gain", String.valueOf(gain))
+                                .build())
+                            .build());
+                            
+                    } else if (type.equals("Transponder") || type.equals("OTNTransponder")) {
+                        String channel = metrics.path("channel").asText("");
+                        boolean isLos = metrics.path("isLOS").asBoolean(false);
+                        
+                        ports.add(DefaultPortDescription.builder()
+                            .withPortNumber(PortNumber.portNumber(portCounter++))
+                            .isEnabled(!isLos) // Loss of Signal
+                            .type(Port.Type.OCH)
+                            .annotations(DefaultAnnotations.builder()
+                                .set("neName", name)
+                                .set("channel", channel)
+                                .build())
+                            .build());
+                    }
+                }
+            }
 
         } catch (Exception e) {
-            log.error("Erro na comunicação com o Middleware Padtec: ", e);
+            log.error("Erro na comunicação via TCP Socket com o Agente Padtec: ", e);
         }
 
         return ports;
@@ -140,24 +156,8 @@ public class PadtecDeviceDescription extends AbstractHandlerBehaviour
 
     @Override
     public Collection<PortStatistics> discoverPortStatistics() {
-        log.info("Discovering port statistics for Padtec via Middleware...");
-        DeviceId deviceId = handler().data().deviceId();
+        // Implementação simplificada baseada no mesmo Agent
         List<PortStatistics> statsList = Lists.newArrayList();
-
-        // Na prática, você também faria um GET HTTP para pegar os ganhos 
-        // e estatísticas de perda reais. Aqui mockamos para evitar complicação.
-        try {
-            DefaultPortStatistics.Builder builder = DefaultPortStatistics.builder();
-            builder.setPort(PortNumber.portNumber(1));
-            builder.setDeviceId(deviceId);
-            builder.setBytesReceived(0);
-            builder.setBytesSent(15L); // Ganho mockado no dashboard do CLI
-
-            statsList.add(builder.build());
-        } catch (Exception e) {
-            log.error("Failed to read statistics from Middleware", e);
-        }
-
         return statsList;
     }
 }
