@@ -16,8 +16,6 @@
   -->
 <drivers>
     <driver name="padtec" manufacturer="Padtec" hwVersion="SPVL4" swVersion="1.0">
-        <behaviour api="org.onosproject.net.optical.OpticalDevice"
-                   impl="org.onosproject.net.optical.DefaultOpticalDevice"/>
 
         <!-- Conectividade Básica -->
         <behaviour api="org.onosproject.net.device.DeviceHandshaker"
@@ -50,6 +48,10 @@
         <!-- Controle de Regras de Fluxo (Read-Only) -->
         <behaviour api="org.onosproject.net.flow.FlowRuleProgrammable"
                    impl="org.onosproject.drivers.padtec.PadtecFlowRuleProgrammable"/>
+
+        <!-- Alertas da Placa (Alarm Consumer) -->
+        <behaviour api="org.onosproject.alarm.AlarmConsumer"
+                   impl="org.onosproject.drivers.padtec.PadtecAlarmConsumer"/>
 
         <property name="uiType">policon</property>
     </driver>
