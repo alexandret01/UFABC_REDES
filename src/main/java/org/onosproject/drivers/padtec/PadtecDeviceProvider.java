@@ -65,11 +65,11 @@ public class PadtecDeviceProvider implements DeviceProvider {
         
         DeviceDescription desc = new DefaultDeviceDescription(
                 DEVICE_ID.uri(),
-                Device.Type.TERMINAL_DEVICE,
+                Device.Type.OPTICAL_AMPLIFIER,
                 "Padtec",
-                "SPVL4",
+                "SPVL4 Controller",
                 "1.0",
-                "Jaquison",
+                "TCP-Agent",
                 new ChassisId(),
                 true,
                 DefaultAnnotations.EMPTY
