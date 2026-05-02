@@ -16,8 +16,13 @@
 
 package org.onosproject.drivers.padtec;
 
+import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Deactivate;
+import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.onosproject.net.driver.AbstractDriverLoader;
+import org.onosproject.net.driver.DriverAdminService;
 
 /**
  * Loader for Padtec device drivers.
@@ -25,7 +30,24 @@ import org.onosproject.net.driver.AbstractDriverLoader;
 @Component(immediate = true)
 public class PadtecDriversLoader extends AbstractDriverLoader {
 
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
+    protected DriverAdminService myDriverAdminService;
+
     public PadtecDriversLoader() {
         super("/padtec-drivers.xml");
+    }
+
+    @Activate
+    @Override
+    protected void activate() {
+        // Injeta a dependência na classe pai para evitar NullPointerException
+        super.driverAdminService = this.myDriverAdminService;
+        super.activate();
+    }
+
+    @Deactivate
+    @Override
+    protected void deactivate() {
+        super.deactivate();
     }
 }

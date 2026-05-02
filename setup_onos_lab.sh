@@ -13,12 +13,14 @@ echo "========================================="
 
 # 0. Ligar o Agente de Leitura do Padtec (TailEndController)
 if [ -d "$PROJECT_DIR/tools/TailEndController" ]; then
-    echo "[0/4] Iniciando o Agente Padtec (TailEndController) em background..."
+    echo "[0/4] Iniciando o Agente Padtec (TailEndController) em background usando Java 18..."
     cd "$PROJECT_DIR/tools/TailEndController"
 
-    # Roda o script de monitoramento original que levanta o Agente (PadtecMonitorJSON3)
-    chmod +x monitor.sh
-    nohup ./monitor.sh > padtec_agent.log 2>&1 &
+    # Compila o PadtecMonitorJSON3 garantindo que enxergue a pasta lib e os pacotes br usando o Javac 18
+    /usr/lib/jvm/jdk-18.0.2.1/bin/javac -cp "./lib/*:." PadtecMonitorJSON3.java PadtecAgentServer.java
+
+    # Roda em background usando estritamente o Java 18
+    nohup /usr/lib/jvm/jdk-18.0.2.1/bin/java -Dorg.apache.logging.log4j.level=INFO -Djava.library.path=./lib/ -cp "./lib/*:." PadtecMonitorJSON3 > padtec_agent.log 2>&1 &
     PADTEC_PID=$!
 
     echo "  -> Agente Padtec iniciado na porta 10151 (PID: $PADTEC_PID)."
@@ -28,7 +30,7 @@ else
 fi
 
 # 1. Iniciar o ONOS
-echo "[1/4] Iniciando o ONOS com Bazel..."
+echo "[1/4] Iniciando o ONOS com Bazel (Usando Java Padrão da Máquina)..."
 cd /home/sdn/onos27/onos
 sudo bazel run --host_force_python=PY2 onos-local -- clean &
 ONOS_PID=$!
