@@ -13,8 +13,7 @@ elif [ -x "/usr/lib/jvm/java-18-openjdk-amd64/bin/javac" ]; then
 fi
 
 # Compila APENAS os dois arquivos principais.
-# O Java irá buscar apenas as dependências diretas deles (como o Supervisor.java)
-# e ignorará o resto do lixo que estava quebrando o build.
+# O -d . força a criação dos .class dentro da estrutura de pacotes correta (ex: br/ufabc/...)
 $JAVAC_CMD -sourcepath . -d . -cp "$CP" PadtecMonitorJSON3.java PadtecAgentServer.java
 
 if [ $? -eq 0 ]; then
