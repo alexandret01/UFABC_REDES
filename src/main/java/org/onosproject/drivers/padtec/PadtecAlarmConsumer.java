@@ -18,7 +18,6 @@ package org.onosproject.drivers.padtec;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.collect.ImmutableList;
 import org.onosproject.alarm.Alarm;
 import org.onosproject.alarm.AlarmConsumer;
 import org.onosproject.alarm.AlarmId;
@@ -33,6 +32,7 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.Socket;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static org.onosproject.alarm.Alarm.SeverityLevel;
@@ -70,8 +70,8 @@ public class PadtecAlarmConsumer extends AbstractHandlerBehaviour implements Ala
             
             String json = jsonResponse.toString();
             
-            if (json == null || json.trim().isEmpty() || json.equals("{}")) {
-                return ImmutableList.copyOf(alarms);
+            if (json == null || json.trim().isEmpty() || "{}".equals(json.trim())) {
+                return Collections.unmodifiableList(alarms);
             }
 
             ObjectMapper mapper = new ObjectMapper();
@@ -104,6 +104,6 @@ public class PadtecAlarmConsumer extends AbstractHandlerBehaviour implements Ala
             log.error("Erro na comunicação de alarmes TCP com o Agente Padtec: ", e);
         }
 
-        return ImmutableList.copyOf(alarms);
+        return Collections.unmodifiableList(alarms);
     }
 }

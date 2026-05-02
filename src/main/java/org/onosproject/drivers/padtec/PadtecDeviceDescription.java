@@ -18,7 +18,6 @@ package org.onosproject.drivers.padtec;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.collect.Lists;
 import org.onosproject.net.DefaultAnnotations;
 import org.onosproject.net.Device;
 import org.onosproject.net.DeviceId;
@@ -39,6 +38,7 @@ import org.slf4j.Logger;
 import java.io.InputStream;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
@@ -77,12 +77,11 @@ public class PadtecDeviceDescription extends AbstractHandlerBehaviour
     @Override
     public List<PortDescription> discoverPortDetails() {
         log.info("Discovering ports on Padtec device via TCP Socket (porta {})...", AGENT_PORT);
-        List<PortDescription> ports = Lists.newArrayList();
+        List<PortDescription> ports = new ArrayList<>();
 
         try (Socket socket = new Socket(AGENT_IP, AGENT_PORT);
              InputStream inputStream = socket.getInputStream()) {
 
-            // Lê todo o fluxo de dados retornado pelo socket TCP
             byte[] buffer = new byte[8192];
             int bytesRead;
             StringBuilder jsonResponse = new StringBuilder();
@@ -90,16 +89,23 @@ public class PadtecDeviceDescription extends AbstractHandlerBehaviour
                 jsonResponse.append(new String(buffer, 0, bytesRead, StandardCharsets.UTF_8));
             }
 
-            String jsonString = jsonResponse.toString();
+            String jsonString = jsonResponse.toString().trim();
             log.info("Dados TCP Recebidos do Agente: \n{}", jsonString);
 
-            // Usa o ObjectMapper do Jackson que já é dependência do ONOS
+            if (jsonString.isEmpty() || "{}".equals(jsonString)) {
+                log.warn("Agente ainda sem dados (JSON vazio). Nenhuma porta registrada.");
+                return ports;
+            }
+
             ObjectMapper mapper = new ObjectMapper();
             JsonNode rootNode = mapper.readTree(jsonString);
 
-            if (rootNode.isArray()) {
+            // Suporta tanto array na raiz quanto objeto {"devices":[...]}
+            JsonNode devicesNode = rootNode.isArray() ? rootNode : rootNode.path("devices");
+
+            if (devicesNode.isArray()) {
                 int portCounter = 1;
-                for (JsonNode node : rootNode) {
+                for (JsonNode node : devicesNode) {
                     String type = node.path("type").asText();
                     String name = node.path("name").asText();
                     JsonNode metrics = node.path("metrics");
@@ -135,11 +141,11 @@ public class PadtecDeviceDescription extends AbstractHandlerBehaviour
                 }
                 log.info("Descoberta com sucesso! {} portas identificadas (FIBER/OCH).", ports.size());
             } else {
-                log.warn("Formato JSON desconhecido recebido do Agente: Não é um Array.");
+                log.warn("Formato JSON inesperado do Agente — nó 'devices' não encontrado ou não é array.");
             }
 
         } catch (Exception e) {
-            log.error("Erro na comunicação TCP com o Agente Padtec (Verifique se o start_agent.sh está rodando): ", e);
+            log.error("Erro na comunicação TCP com o Agente Padtec (porta {}): ", AGENT_PORT, e);
         }
 
         return ports;
@@ -149,7 +155,7 @@ public class PadtecDeviceDescription extends AbstractHandlerBehaviour
     public Collection<PortStatistics> discoverPortStatistics() {
         log.info("Discovering port statistics for Padtec via TCP Agent...");
         DeviceId deviceId = handler().data().deviceId();
-        List<PortStatistics> statsList = Lists.newArrayList();
+        List<PortStatistics> statsList = new ArrayList<>();
 
         try {
             DefaultPortStatistics.Builder builder = DefaultPortStatistics.builder();
