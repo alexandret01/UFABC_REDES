@@ -16,18 +16,8 @@
 
 package org.onosproject.drivers.padtec;
 
-import com.google.common.collect.ImmutableList;
-
-import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
-import org.osgi.service.component.annotations.Deactivate;
-import org.osgi.service.component.annotations.Reference;
-import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.onosproject.net.driver.AbstractDriverLoader;
-import org.onosproject.net.optical.OpticalDevice;
-import org.onosproject.ui.UiGlyph;
-import org.onosproject.ui.UiGlyphFactory;
-import org.onosproject.ui.UiExtensionService;
 
 /**
  * Loader for Padtec device drivers.
@@ -35,35 +25,7 @@ import org.onosproject.ui.UiExtensionService;
 @Component(immediate = true)
 public class PadtecDriversLoader extends AbstractDriverLoader {
 
-    // OSGI: help bundle plugin discover runtime package dependency.
-    @SuppressWarnings("unused")
-    private OpticalDevice optical;
-
-    @Reference(cardinality = ReferenceCardinality.MANDATORY)
-    protected UiExtensionService uiExtensionService;
-
-    private UiGlyphFactory glyphFactory =
-        () -> ImmutableList.of(
-            new UiGlyph("policon", "0 0 64 64",
-            		"m 29.127274,38.454544 h 10.8 L 40.09091,63.490907 29.127274,63.327271 Z"
-            		+ "m 32.072727,43.036362 h 5.236364 v 3.927272 h -5.236364 z")
-            );
-
     public PadtecDriversLoader() {
         super("/padtec-drivers.xml");
-    }
-
-    @Activate
-    @Override
-    protected void activate() {
-        uiExtensionService.register(glyphFactory);
-        super.activate();
-    }
-
-    @Deactivate
-    @Override
-    protected void deactivate() {
-        uiExtensionService.unregister(glyphFactory);
-        super.deactivate();
     }
 }
