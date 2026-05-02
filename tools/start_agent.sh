@@ -1,14 +1,17 @@
 #!/bin/bash
-echo "==> Compilando e iniciando o Agente Padtec SIMPLES..."
+# Script para iniciar o agente Padtec simples para testes (TCP 10151)
+
 cd "$(dirname "$0")"
 
-# Usa o Java 11 padrão da máquina, sem dependências externas
-javac PadtecAgent.java
+echo "Removendo .class antigos..."
+rm -f SimplePadtecAgent.class
 
-if [ $? -ne 0 ]; then
-    echo "ERRO: Falha ao compilar o PadtecAgent.java"
-    exit 1
+echo "Compilando SimplePadtecAgent..."
+javac SimplePadtecAgent.java
+
+if [ $? -eq 0 ]; then
+    echo "Sucesso! Iniciando..."
+    java SimplePadtecAgent
+else
+    echo "Erro na compilação do Agente Simples."
 fi
-
-echo "Compilação OK. Iniciando o servidor na porta 10151..."
-java PadtecAgent

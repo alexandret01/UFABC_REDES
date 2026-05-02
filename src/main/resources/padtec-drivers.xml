@@ -48,7 +48,5 @@
         <!-- Controle de Regras de Fluxo (Read-Only) -->
         <behaviour api="org.onosproject.net.flow.FlowRuleProgrammable"
                    impl="org.onosproject.drivers.padtec.PadtecFlowRuleProgrammable"/>
-
-        <property name="uiType">policon</property>
     </driver>
 </drivers>

@@ -26,96 +26,143 @@ import org.onosproject.net.Port;
 import org.onosproject.net.PortNumber;
 import org.onosproject.net.device.DefaultDeviceDescription;
 import org.onosproject.net.device.DefaultPortDescription;
+import org.onosproject.net.device.DefaultPortStatistics;
 import org.onosproject.net.device.DeviceDescription;
 import org.onosproject.net.device.DeviceDescriptionDiscovery;
 import org.onosproject.net.device.PortDescription;
+import org.onosproject.net.device.PortStatistics;
+import org.onosproject.net.device.PortStatisticsDiscovery;
 import org.onosproject.net.driver.AbstractHandlerBehaviour;
 import org.onlab.packet.ChassisId;
 import org.slf4j.Logger;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.net.HttpURLConnection;
-import java.net.URL;
+import java.io.InputStream;
+import java.net.Socket;
+import java.nio.charset.StandardCharsets;
+import java.util.Collection;
 import java.util.List;
 
 import static org.slf4j.LoggerFactory.getLogger;
 
 /**
- * Driver para Padtec que consome dados de um Agente HTTP externo.
+ * Driver implementation for Padtec devices integrating via TCP Agent.
  */
 public class PadtecDeviceDescription extends AbstractHandlerBehaviour 
-        implements DeviceDescriptionDiscovery {
+        implements DeviceDescriptionDiscovery, PortStatisticsDiscovery {
 
     private final Logger log = getLogger(getClass());
-    private static final String AGENT_URL = "http://127.0.0.1:10151/get-metrics";
+
+    // O IP do servidor de Agente agora é localhost
+    private static final String AGENT_IP = "127.0.0.1";
+    // A porta oficial que o PadtecAgentServer original da UFABC ouvia
+    private static final int AGENT_PORT = 10151;
 
     @Override
     public DeviceDescription discoverDeviceDetails() {
+        log.info("Discovering Padtec device details...");
         DeviceId deviceId = handler().data().deviceId();
+        
         return new DefaultDeviceDescription(
-                deviceId.uri(), Device.Type.TERMINAL_DEVICE, "Padtec", "SPVL4", "1.0",
-                "Agente-Padtec", new ChassisId(), true, DefaultAnnotations.EMPTY);
+                deviceId.uri(),
+                Device.Type.TERMINAL_DEVICE,
+                "Padtec",
+                "SPVL4",
+                "1.0",
+                "TCP-Agent-Integrated",
+                new ChassisId(),
+                true,
+                DefaultAnnotations.EMPTY);
     }
 
     @Override
     public List<PortDescription> discoverPortDetails() {
-        log.info("Buscando portas do Padtec no Agente Externo: {}", AGENT_URL);
+        log.info("Discovering ports on Padtec device via TCP Socket (porta {})...", AGENT_PORT);
         List<PortDescription> ports = Lists.newArrayList();
 
-        try {
-            URL url = new URL(AGENT_URL);
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod("GET");
-            conn.setConnectTimeout(5000);
+        try (Socket socket = new Socket(AGENT_IP, AGENT_PORT);
+             InputStream inputStream = socket.getInputStream()) {
 
-            if (conn.getResponseCode() != 200) {
-                log.error("Falha ao conectar no Agente Padtec. Código HTTP: {}", conn.getResponseCode());
-                return ports;
+            // Lê todo o fluxo de dados retornado pelo socket TCP
+            byte[] buffer = new byte[8192];
+            int bytesRead;
+            StringBuilder jsonResponse = new StringBuilder();
+            while ((bytesRead = inputStream.read(buffer)) != -1) {
+                jsonResponse.append(new String(buffer, 0, bytesRead, StandardCharsets.UTF_8));
             }
 
-            BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-            String json = reader.readLine();
-            log.info("Agente respondeu com JSON: {}", json);
-            
+            String jsonString = jsonResponse.toString();
+            log.info("Dados TCP Recebidos do Agente: \n{}", jsonString);
+
+            // Usa o ObjectMapper do Jackson que já é dependência do ONOS
             ObjectMapper mapper = new ObjectMapper();
-            JsonNode rootNode = mapper.readTree(json);
-            JsonNode devicesNode = rootNode.path("devices");
+            JsonNode rootNode = mapper.readTree(jsonString);
 
-            if (devicesNode.isArray()) {
-                long portCounter = 1;
-                for (JsonNode deviceNode : devicesNode) {
-                    String type = deviceNode.path("type").asText();
-                    String name = deviceNode.path("name").asText("N/A");
-                    JsonNode metrics = deviceNode.path("metrics");
+            if (rootNode.isArray()) {
+                int portCounter = 1;
+                for (JsonNode node : rootNode) {
+                    String type = node.path("type").asText();
+                    String name = node.path("name").asText();
+                    JsonNode metrics = node.path("metrics");
 
-                    if (type.equals("Amplifier")) {
+                    if ("Amplifier".equals(type)) {
+                        double gain = metrics.path("gain").asDouble();
+                        boolean isLOS = metrics.path("isLOS").asBoolean(false);
+
                         ports.add(DefaultPortDescription.builder()
                                 .withPortNumber(PortNumber.portNumber(portCounter++))
-                                .isEnabled(true)
+                                .isEnabled(!isLOS)
                                 .type(Port.Type.FIBER)
                                 .annotations(DefaultAnnotations.builder()
                                         .set("neName", name)
-                                        .set("gain", metrics.path("gain").asText("0.0"))
+                                        .set("gain", String.valueOf(gain))
                                         .build())
                                 .build());
-                    } else if (type.equals("Transponder")) {
+
+                    } else if ("OTNTransponder".equals(type) || "Transponder".equals(type)) {
+                        String channel = metrics.path("channel").asText();
+                        boolean isLOS = metrics.path("isLOS").asBoolean(false);
+
                         ports.add(DefaultPortDescription.builder()
                                 .withPortNumber(PortNumber.portNumber(portCounter++))
-                                .isEnabled(!metrics.path("isLOS").asBoolean(false))
+                                .isEnabled(!isLOS)
                                 .type(Port.Type.OCH)
                                 .annotations(DefaultAnnotations.builder()
                                         .set("neName", name)
-                                        .set("channel", metrics.path("channel").asText("N/A"))
+                                        .set("channel", channel)
                                         .build())
                                 .build());
                     }
                 }
+                log.info("Descoberta com sucesso! {} portas identificadas (FIBER/OCH).", ports.size());
+            } else {
+                log.warn("Formato JSON desconhecido recebido do Agente: Não é um Array.");
             }
-            conn.disconnect();
+
         } catch (Exception e) {
-            log.error("Erro crítico ao comunicar com o Agente Padtec: ", e);
+            log.error("Erro na comunicação TCP com o Agente Padtec (Verifique se o start_agent.sh está rodando): ", e);
         }
+
         return ports;
+    }
+
+    @Override
+    public Collection<PortStatistics> discoverPortStatistics() {
+        log.info("Discovering port statistics for Padtec via TCP Agent...");
+        DeviceId deviceId = handler().data().deviceId();
+        List<PortStatistics> statsList = Lists.newArrayList();
+
+        try {
+            DefaultPortStatistics.Builder builder = DefaultPortStatistics.builder();
+            builder.setPort(PortNumber.portNumber(1));
+            builder.setDeviceId(deviceId);
+            builder.setBytesReceived(0);
+            builder.setBytesSent(0); 
+
+            statsList.add(builder.build());
+        } catch (Exception e) {
+            log.error("Failed to mock statistics", e);
+        }
+
+        return statsList;
     }
 }

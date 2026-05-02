@@ -23,6 +23,11 @@ import org.osgi.service.component.annotations.Reference;
 import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.onosproject.net.driver.AbstractDriverLoader;
 import org.onosproject.net.driver.DriverAdminService;
+import org.onosproject.core.CoreService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.lang.reflect.Field;
 
 /**
  * Loader for Padtec device drivers.
@@ -30,8 +35,13 @@ import org.onosproject.net.driver.DriverAdminService;
 @Component(immediate = true)
 public class PadtecDriversLoader extends AbstractDriverLoader {
 
+    private final Logger log = LoggerFactory.getLogger(getClass());
+
     @Reference(cardinality = ReferenceCardinality.MANDATORY)
-    protected DriverAdminService myDriverAdminService;
+    protected DriverAdminService driverAdminServiceLocal;
+
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
+    protected CoreService coreServiceLocal;
 
     public PadtecDriversLoader() {
         super("/padtec-drivers.xml");
@@ -40,14 +50,41 @@ public class PadtecDriversLoader extends AbstractDriverLoader {
     @Activate
     @Override
     protected void activate() {
-        // Injeta a dependência na classe pai para evitar NullPointerException
-        super.driverAdminService = this.myDriverAdminService;
-        super.activate();
+        log.info("Ativando PadtecDriversLoader...");
+        injectSuperclassField("coreService", coreServiceLocal);
+        injectSuperclassField("driverAdminService", driverAdminServiceLocal);
+        
+        try {
+            super.activate();
+            log.info("PadtecDriversLoader ativado com sucesso via super.activate().");
+        } catch (Exception e) {
+            log.error("Erro no super.activate()", e);
+            throw e;
+        }
     }
 
     @Deactivate
     @Override
     protected void deactivate() {
         super.deactivate();
+    }
+
+    private void injectSuperclassField(String fieldName, Object value) {
+        Class<?> clazz = getClass();
+        while (clazz != null) {
+            try {
+                Field field = clazz.getDeclaredField(fieldName);
+                field.setAccessible(true);
+                field.set(this, value);
+                log.info("Injetado com sucesso o campo {} na classe {}", fieldName, clazz.getName());
+                return;
+            } catch (NoSuchFieldException e) {
+                clazz = clazz.getSuperclass();
+            } catch (Exception e) {
+                log.error("Falha ao injetar campo {}", fieldName, e);
+                return;
+            }
+        }
+        log.warn("Campo {} não encontrado em nenhuma superclasse!", fieldName);
     }
 }
