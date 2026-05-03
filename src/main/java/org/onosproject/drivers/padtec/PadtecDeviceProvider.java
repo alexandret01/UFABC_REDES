@@ -333,19 +333,23 @@ public class PadtecDeviceProvider implements DeviceProvider {
             long now = System.currentTimeMillis() / 1000L;
             int portIdx = 1;
             for (JsonNode node : devicesNode) {
-                String type    = node.path("type").asText();
+                String type      = node.path("type").asText();
                 JsonNode metrics = node.path("metrics");
 
-                long rxPower = 0L;
-                long txPower = 0L;
+                long rxPower   = 0L;
+                long txPower   = 0L;
+                long fecErrors = 0L;
 
                 if ("Transponder".equals(type)) {
-                    if (!metrics.path("inputPower").isMissingNode() && !metrics.path("inputPower").isNull()) {
-                        rxPower = Math.round(metrics.path("inputPower").asDouble() * 1000.0);
-                    }
-                    if (!metrics.path("outputPower").isMissingNode() && !metrics.path("outputPower").isNull()) {
-                        txPower = Math.round(metrics.path("outputPower").asDouble() * 1000.0);
-                    }
+                    rxPower = longFromMetric(metrics, "inputPower",  1000.0);
+                    txPower = longFromMetric(metrics, "outputPower", 1000.0);
+                } else if ("OTNTransponder".equals(type)) {
+                    rxPower   = longFromMetric(metrics, "inputPowerWDM",  1000.0);
+                    txPower   = longFromMetric(metrics, "outputPowerWDM", 1000.0);
+                    fecErrors = longFromMetric(metrics, "fecErrors", 1.0);
+                } else if ("Amplifier".equals(type)) {
+                    rxPower = longFromMetric(metrics, "powerInput",  1000.0);
+                    txPower = longFromMetric(metrics, "powerOutput", 1000.0);
                 }
 
                 stats.add(DefaultPortStatistics.builder()
@@ -353,11 +357,11 @@ public class PadtecDeviceProvider implements DeviceProvider {
                         .setPort(PortNumber.portNumber(portIdx++))
                         .setBytesReceived(0)
                         .setBytesSent(0)
-                        .setPacketsReceived(rxPower)
-                        .setPacketsSent(txPower)
+                        .setPacketsReceived(rxPower)    // potência de entrada × 1000 (dBm como long)
+                        .setPacketsSent(txPower)        // potência de saída   × 1000
                         .setPacketsRxDropped(0)
                         .setPacketsTxDropped(0)
-                        .setPacketsRxErrors(0)
+                        .setPacketsRxErrors(fecErrors)  // contador real de erros FEC (OTNTransponder)
                         .setPacketsTxErrors(0)
                         .setDurationSec(now)
                         .setDurationNano(0)
@@ -373,6 +377,18 @@ public class PadtecDeviceProvider implements DeviceProvider {
     // -----------------------------------------------------------------------
     // Helpers
     // -----------------------------------------------------------------------
+
+    /**
+     * Lê campo numérico do JSON de métricas e retorna (valor × factor) como long.
+     * Retorna 0 se o campo estiver ausente ou nulo.
+     */
+    private static long longFromMetric(JsonNode metrics, String field, double factor) {
+        JsonNode node = metrics.path(field);
+        if (node.isMissingNode() || node.isNull()) {
+            return 0L;
+        }
+        return Math.round(node.asDouble() * factor);
+    }
 
     /**
      * Adiciona campo de anotação apenas se presente no JSON e não nulo.
