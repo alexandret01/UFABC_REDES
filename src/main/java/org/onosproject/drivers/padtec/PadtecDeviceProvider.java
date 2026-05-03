@@ -11,11 +11,13 @@ import org.onosproject.net.Port;
 import org.onosproject.net.PortNumber;
 import org.onosproject.net.device.DefaultDeviceDescription;
 import org.onosproject.net.device.DefaultPortDescription;
+import org.onosproject.net.device.DefaultPortStatistics;
 import org.onosproject.net.device.DeviceDescription;
 import org.onosproject.net.device.DeviceProvider;
 import org.onosproject.net.device.DeviceProviderRegistry;
 import org.onosproject.net.device.DeviceProviderService;
 import org.onosproject.net.device.PortDescription;
+import org.onosproject.net.device.PortStatistics;
 import org.onosproject.net.provider.ProviderId;
 import org.onlab.packet.ChassisId;
 import org.osgi.service.component.annotations.Activate;
@@ -29,6 +31,7 @@ import java.io.InputStream;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
@@ -66,20 +69,44 @@ public class PadtecDeviceProvider implements DeviceProvider {
     /** Timestamp da última coleta — atualizado em readPortsFromAgent(). */
     private volatile String lastCollected = "unknown";
 
+    /** Intervalo de atualização de estatísticas: 60 segundos. */
+    private static final long STATS_INTERVAL_MS = 60_000L;
+
+    private Timer statsTimer;
+
     @Activate
     public void activate() {
         providerService = providerRegistry.register(this);
         log.info("Padtec Device Provider Started");
 
-        // Injeta o dispositivo no ONOS com um delay maior (45s) para garantir 
-        // que o ONOS tenha terminado de descobrir os outros switches (Polatis) e 
-        // carregado o padtec-drivers.xml com folga, além do agente TailEnd em Java 18 estar no ar.
+        // Injeta o dispositivo após 45s (aguarda ONOS + agente Java 18 estarem prontos)
         new Timer().schedule(new TimerTask() {
             @Override
             public void run() {
                 injectDevice();
+                // Inicia polling periódico de estatísticas após a injeção
+                startStatsPolling();
             }
         }, 45000);
+    }
+
+    /** Inicia timer periódico para atualizar estatísticas de porta no ONOS. */
+    private void startStatsPolling() {
+        statsTimer = new Timer("padtec-stats", true);
+        statsTimer.scheduleAtFixedRate(new TimerTask() {
+            @Override
+            public void run() {
+                try {
+                    Collection<PortStatistics> stats = readStatsFromAgent();
+                    if (!stats.isEmpty() && providerService != null) {
+                        providerService.updatePortStatistics(DEVICE_ID, stats);
+                        log.debug("Estatísticas de {} porta(s) atualizadas no ONOS.", stats.size());
+                    }
+                } catch (Exception e) {
+                    log.warn("Erro ao atualizar estatísticas Padtec: {}", e.getMessage());
+                }
+            }
+        }, 5000, STATS_INTERVAL_MS);
     }
 
     private void injectDevice() {
@@ -214,8 +241,85 @@ public class PadtecDeviceProvider implements DeviceProvider {
         return ports;
     }
 
+    /**
+     * Lê dados do agente TCP e retorna estatísticas por porta.
+     * inputPower/outputPower (dBm) são codificados × 1000 nos campos de pacotes.
+     */
+    private Collection<PortStatistics> readStatsFromAgent() {
+        List<PortStatistics> stats = new ArrayList<>();
+        try (Socket socket = new Socket(AGENT_IP, AGENT_PORT);
+             InputStream in = socket.getInputStream()) {
+
+            byte[] buf = new byte[8192];
+            int n;
+            StringBuilder sb = new StringBuilder();
+            while ((n = in.read(buf)) != -1) {
+                sb.append(new String(buf, 0, n, StandardCharsets.UTF_8));
+            }
+
+            String raw = sb.toString().trim();
+            if (raw.isEmpty() || "{}".equals(raw)) {
+                return stats;
+            }
+
+            String jsonStr = raw.contains("\n\n") ? raw.split("\n\n")[0] : raw;
+            jsonStr = NAN_PATTERN.matcher(jsonStr).replaceAll(": null");
+
+            ObjectMapper mapper = new ObjectMapper();
+            mapper.configure(JsonParser.Feature.ALLOW_NON_NUMERIC_NUMBERS, true);
+            JsonNode root = mapper.readTree(jsonStr);
+            JsonNode devicesNode = root.isArray() ? root : root.path("devices");
+
+            if (!devicesNode.isArray()) {
+                return stats;
+            }
+
+            long now = System.currentTimeMillis() / 1000L;
+            int portIdx = 1;
+            for (JsonNode node : devicesNode) {
+                String type    = node.path("type").asText();
+                JsonNode metrics = node.path("metrics");
+
+                long rxPower = 0L;
+                long txPower = 0L;
+
+                if ("Transponder".equals(type)) {
+                    if (!metrics.path("inputPower").isMissingNode() && !metrics.path("inputPower").isNull()) {
+                        rxPower = Math.round(metrics.path("inputPower").asDouble() * 1000.0);
+                    }
+                    if (!metrics.path("outputPower").isMissingNode() && !metrics.path("outputPower").isNull()) {
+                        txPower = Math.round(metrics.path("outputPower").asDouble() * 1000.0);
+                    }
+                }
+
+                stats.add(DefaultPortStatistics.builder()
+                        .setDeviceId(DEVICE_ID)
+                        .setPort(PortNumber.portNumber(portIdx++))
+                        .setBytesReceived(0)
+                        .setBytesSent(0)
+                        .setPacketsReceived(rxPower)
+                        .setPacketsSent(txPower)
+                        .setPacketsRxDropped(0)
+                        .setPacketsTxDropped(0)
+                        .setPacketsRxErrors(0)
+                        .setPacketsTxErrors(0)
+                        .setDurationSec(now)
+                        .setDurationNano(0)
+                        .build());
+            }
+
+        } catch (Exception e) {
+            log.debug("Erro ao ler estatísticas do agente: {}", e.getMessage());
+        }
+        return stats;
+    }
+
     @Deactivate
     public void deactivate() {
+        if (statsTimer != null) {
+            statsTimer.cancel();
+            statsTimer = null;
+        }
         if (providerService != null) {
             providerService.deviceDisconnected(DEVICE_ID);
             providerRegistry.unregister(this);
