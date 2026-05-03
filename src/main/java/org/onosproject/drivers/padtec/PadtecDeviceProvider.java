@@ -145,26 +145,44 @@ public class PadtecDeviceProvider implements DeviceProvider {
                     JsonNode metrics = node.path("metrics");
 
                     if ("Amplifier".equals(type)) {
+                        boolean isLOS = metrics.path("isLOS").asBoolean(false);
                         ports.add(DefaultPortDescription.builder()
                                 .withPortNumber(PortNumber.portNumber(portIdx++))
-                                .isEnabled(!metrics.path("isLOS").asBoolean(false))
+                                .isEnabled(!isLOS)
                                 .type(Port.Type.FIBER)
                                 .annotations(DefaultAnnotations.builder()
                                         .set("neName", name)
-                                        .set("gain", String.valueOf(
-                                                metrics.path("gain").asDouble()))
+                                        .set("gain", String.valueOf(metrics.path("gain").asDouble()))
+                                        .set("isLOS", String.valueOf(isLOS))
                                         .build())
                                 .build());
 
                     } else if ("OTNTransponder".equals(type) || "Transponder".equals(type)) {
+                        boolean isLOS = metrics.path("isLOS").asBoolean(false);
+                        DefaultAnnotations.Builder ann = DefaultAnnotations.builder()
+                                .set("neName", name)
+                                .set("type", type)
+                                .set("channel", metrics.path("channel").asText())
+                                .set("isLOS", String.valueOf(isLOS));
+
+                        // Campos extras presentes nos Transponders (podem ser null/NaN no hardware)
+                        if (!metrics.path("inputPower").isMissingNode()) {
+                            ann.set("inputPower", metrics.path("inputPower").isNull()
+                                    ? "N/A" : String.valueOf(metrics.path("inputPower").asDouble()));
+                        }
+                        if (!metrics.path("outputPower").isMissingNode()) {
+                            ann.set("outputPower", metrics.path("outputPower").isNull()
+                                    ? "N/A" : String.valueOf(metrics.path("outputPower").asDouble()));
+                        }
+                        if (!metrics.path("lambda").isMissingNode()) {
+                            ann.set("lambda", String.valueOf(metrics.path("lambda").asDouble()));
+                        }
+
                         ports.add(DefaultPortDescription.builder()
                                 .withPortNumber(PortNumber.portNumber(portIdx++))
-                                .isEnabled(!metrics.path("isLOS").asBoolean(false))
+                                .isEnabled(!isLOS)
                                 .type(Port.Type.OCH)
-                                .annotations(DefaultAnnotations.builder()
-                                        .set("neName", name)
-                                        .set("channel", metrics.path("channel").asText())
-                                        .build())
+                                .annotations(ann.build())
                                 .build());
                     }
                 }

@@ -122,6 +122,7 @@ public class PadtecDeviceDescription extends AbstractHandlerBehaviour
                                 .annotations(DefaultAnnotations.builder()
                                         .set("neName", name)
                                         .set("gain", String.valueOf(gain))
+                                        .set("isLOS", String.valueOf(isLOS))
                                         .build())
                                 .build());
 
@@ -129,14 +130,29 @@ public class PadtecDeviceDescription extends AbstractHandlerBehaviour
                         String channel = metrics.path("channel").asText();
                         boolean isLOS = metrics.path("isLOS").asBoolean(false);
 
+                        DefaultAnnotations.Builder ann = DefaultAnnotations.builder()
+                                .set("neName", name)
+                                .set("type", type)
+                                .set("channel", channel)
+                                .set("isLOS", String.valueOf(isLOS));
+
+                        if (!metrics.path("inputPower").isMissingNode()) {
+                            ann.set("inputPower", metrics.path("inputPower").isNull()
+                                    ? "N/A" : String.valueOf(metrics.path("inputPower").asDouble()));
+                        }
+                        if (!metrics.path("outputPower").isMissingNode()) {
+                            ann.set("outputPower", metrics.path("outputPower").isNull()
+                                    ? "N/A" : String.valueOf(metrics.path("outputPower").asDouble()));
+                        }
+                        if (!metrics.path("lambda").isMissingNode()) {
+                            ann.set("lambda", String.valueOf(metrics.path("lambda").asDouble()));
+                        }
+
                         ports.add(DefaultPortDescription.builder()
                                 .withPortNumber(PortNumber.portNumber(portCounter++))
                                 .isEnabled(!isLOS)
                                 .type(Port.Type.OCH)
-                                .annotations(DefaultAnnotations.builder()
-                                        .set("neName", name)
-                                        .set("channel", channel)
-                                        .build())
+                                .annotations(ann.build())
                                 .build());
                     }
                 }
