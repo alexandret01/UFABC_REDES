@@ -1,6 +1,5 @@
 package org.onosproject.drivers.padtec;
 
-import com.google.common.collect.Sets;
 import org.onosproject.net.ChannelSpacing;
 import org.onosproject.net.OchSignal;
 import org.onosproject.net.PortNumber;
@@ -8,6 +7,7 @@ import org.onosproject.net.behaviour.LambdaQuery;
 import org.onosproject.net.driver.AbstractHandlerBehaviour;
 import org.slf4j.Logger;
 
+import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.stream.IntStream;
 
@@ -24,7 +24,7 @@ public class PadtecLambdaQuery extends AbstractHandlerBehaviour implements Lambd
     public Set<OchSignal> queryLambdas(PortNumber port) {
         log.info("Querying available lambdas for port {} on Padtec device {}", port, handler().data().deviceId());
         
-        Set<OchSignal> lambdas = Sets.newLinkedHashSet();
+        Set<OchSignal> lambdas = new LinkedHashSet<>();
         
         // Exemplo: Retornando lambdas da banda C ITU-T (grid de 50 GHz)
         // Isso é essencial para que o ONOS saiba quais comprimentos de onda podem ser usados no roteamento óptico.
