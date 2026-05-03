@@ -164,8 +164,12 @@ curl -s -u onos:rocks \
   http://localhost:8181/onos/v1/statistics/ports/padtec:172.17.36.50 | python3 -m json.tool
 
 # Alarmes LOS ativos (requer faultmanagement ativo)
+# NOTA: No ONOS 3.0.0-SNAPSHOT o faultmanagement registra o contexto em "onos/dhcp" por bug de empacotamento
 curl -s -u onos:rocks \
-  "http://localhost:8181/onos/v1/alarms?devId=padtec:172.17.36.50" | python3 -m json.tool
+  "http://localhost:8181/onos/dhcp/alarms?devId=padtec:172.17.36.50" | python3 -m json.tool
+
+# Todos os alarmes (sem filtro)
+curl -s -u onos:rocks http://localhost:8181/onos/dhcp/alarms | python3 -m json.tool
 
 # Links ópticos injetados
 curl -s -u onos:rocks \
