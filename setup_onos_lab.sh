@@ -63,6 +63,10 @@ APPS=(
   "org.onosproject.netconf"
   "org.onosproject.drivers.polatis.netconf"
   "org.onosproject.drivers.polatis.openflow"
+  # Alarmes Padtec: expõe /onos/v1/alarms e processa AlarmConsumer
+  "org.onosproject.faultmanagement"
+  # Links estáticos e descoberta
+  "org.onosproject.linkdiscovery"
 )
 
 for app in "${APPS[@]}"; do

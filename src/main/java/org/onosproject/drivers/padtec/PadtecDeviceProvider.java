@@ -90,20 +90,48 @@ public class PadtecDeviceProvider implements DeviceProvider {
         }, 45000);
     }
 
-    /** Inicia timer periódico para atualizar estatísticas de porta no ONOS. */
+    /**
+     * Inicia timer periódico que, a cada STATS_INTERVAL_MS (60s):
+     *  1. Relê todas as portas do agente e publica via updatePorts()
+     *  2. Atualiza as anotações do device (lastCollected)
+     *  3. Atualiza as estatísticas de porta via updatePortStatistics()
+     */
     private void startStatsPolling() {
-        statsTimer = new Timer("padtec-stats", true);
+        statsTimer = new Timer("padtec-poller", true);
         statsTimer.scheduleAtFixedRate(new TimerTask() {
             @Override
             public void run() {
+                if (providerService == null) {
+                    return;
+                }
                 try {
+                    // --- 1. Refresh de portas + device description ---
+                    List<PortDescription> ports = readPortsFromAgent();
+                    if (!ports.isEmpty()) {
+                        DeviceDescription desc = new DefaultDeviceDescription(
+                                DEVICE_ID.uri(),
+                                Device.Type.OPTICAL_AMPLIFIER,
+                                "Padtec", "SPVL4 Controller", "1.0", "TCP-Agent",
+                                new ChassisId(), true,
+                                DefaultAnnotations.builder()
+                                        .set("lastCollected", lastCollected)
+                                        .set("supervisor", PADTEC_IP + ":8886")
+                                        .build());
+                        providerService.deviceConnected(DEVICE_ID, desc);
+                        providerService.updatePorts(DEVICE_ID, ports);
+                        log.debug("Portas atualizadas: {} porta(s), lastCollected={}.",
+                                ports.size(), lastCollected);
+                    }
+
+                    // --- 2. Refresh de estatísticas ---
                     Collection<PortStatistics> stats = readStatsFromAgent();
-                    if (!stats.isEmpty() && providerService != null) {
+                    if (!stats.isEmpty()) {
                         providerService.updatePortStatistics(DEVICE_ID, stats);
                         log.debug("Estatísticas de {} porta(s) atualizadas no ONOS.", stats.size());
                     }
+
                 } catch (Exception e) {
-                    log.warn("Erro ao atualizar estatísticas Padtec: {}", e.getMessage());
+                    log.warn("Erro no ciclo de polling Padtec: {}", e.getMessage());
                 }
             }
         }, 5000, STATS_INTERVAL_MS);
@@ -190,15 +218,25 @@ public class PadtecDeviceProvider implements DeviceProvider {
 
                     if ("Amplifier".equals(type)) {
                         boolean isLOS = metrics.path("isLOS").asBoolean(false);
+                        boolean isAGC = metrics.path("isAGC").asBoolean(false);
+                        DefaultAnnotations.Builder ampAnn = DefaultAnnotations.builder()
+                                .set("neName", name)
+                                .set("gain", String.valueOf(metrics.path("gain").asDouble()))
+                                .set("isLOS", String.valueOf(isLOS))
+                                .set("isAGC", String.valueOf(isAGC));
+                        if (!metrics.path("powerInput").isMissingNode()) {
+                            ampAnn.set("powerInput", metrics.path("powerInput").isNull()
+                                    ? "N/A" : String.valueOf(metrics.path("powerInput").asDouble()));
+                        }
+                        if (!metrics.path("powerOutput").isMissingNode()) {
+                            ampAnn.set("powerOutput", metrics.path("powerOutput").isNull()
+                                    ? "N/A" : String.valueOf(metrics.path("powerOutput").asDouble()));
+                        }
                         ports.add(DefaultPortDescription.builder()
                                 .withPortNumber(PortNumber.portNumber(portIdx++))
                                 .isEnabled(!isLOS)
                                 .type(Port.Type.FIBER)
-                                .annotations(DefaultAnnotations.builder()
-                                        .set("neName", name)
-                                        .set("gain", String.valueOf(metrics.path("gain").asDouble()))
-                                        .set("isLOS", String.valueOf(isLOS))
-                                        .build())
+                                .annotations(ampAnn.build())
                                 .build());
 
                     } else if ("OTNTransponder".equals(type) || "Transponder".equals(type)) {
