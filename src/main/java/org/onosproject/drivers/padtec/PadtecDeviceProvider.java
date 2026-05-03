@@ -1,17 +1,22 @@
 package org.onosproject.drivers.padtec;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.onosproject.net.DefaultAnnotations;
 import org.onosproject.net.Device;
 import org.onosproject.net.DeviceId;
 import org.onosproject.net.MastershipRole;
+import org.onosproject.net.Port;
 import org.onosproject.net.PortNumber;
 import org.onosproject.net.device.DefaultDeviceDescription;
+import org.onosproject.net.device.DefaultPortDescription;
 import org.onosproject.net.device.DeviceDescription;
 import org.onosproject.net.device.DeviceProvider;
 import org.onosproject.net.device.DeviceProviderRegistry;
 import org.onosproject.net.device.DeviceProviderService;
+import org.onosproject.net.device.PortDescription;
 import org.onosproject.net.provider.ProviderId;
 import org.onlab.packet.ChassisId;
-import org.onosproject.net.DefaultAnnotations;
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Deactivate;
@@ -19,6 +24,11 @@ import org.osgi.service.component.annotations.Reference;
 import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.slf4j.Logger;
 
+import java.io.InputStream;
+import java.net.Socket;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
 
@@ -40,9 +50,13 @@ public class PadtecDeviceProvider implements DeviceProvider {
     private DeviceProviderService providerService;
     private static final ProviderId PID = new ProviderId("padtec", "org.onosproject.drivers.padtec");
 
-    // IP Fixo do laboratório conforme os scripts (pode ser expandido depois)
+    // IP Fixo do laboratório conforme os scripts
     private static final String PADTEC_IP = "172.17.36.50";
     private static final DeviceId DEVICE_ID = DeviceId.deviceId("padtec:" + PADTEC_IP);
+
+    // Endereço do agente TCP interno (PadtecAgentServer via PadtecManager)
+    private static final String AGENT_IP   = "127.0.0.1";
+    private static final int    AGENT_PORT = 10151;
 
     @Activate
     public void activate() {
@@ -62,7 +76,7 @@ public class PadtecDeviceProvider implements DeviceProvider {
 
     private void injectDevice() {
         log.info("Injetando equipamento Padtec {} no core do ONOS...", DEVICE_ID);
-        
+
         DeviceDescription desc = new DefaultDeviceDescription(
                 DEVICE_ID.uri(),
                 Device.Type.OPTICAL_AMPLIFIER,
@@ -74,10 +88,94 @@ public class PadtecDeviceProvider implements DeviceProvider {
                 true,
                 DefaultAnnotations.EMPTY
         );
-        
-        // Isso avisa o ONOS: "Ei, achei um dispositivo!"
-        // O ONOS vai registrar e em seguida chamar os Behaviours do driver para ler as portas.
+
+        // 1. Registra o dispositivo no core do ONOS
         providerService.deviceConnected(DEVICE_ID, desc);
+        log.info("Dispositivo Padtec registrado.");
+
+        // 2. Lê as portas do agente TCP e publica via updatePorts().
+        //    IMPORTANTE: para providers customizados o ONOS NÃO chama
+        //    DeviceDescriptionDiscovery automaticamente — o provider deve
+        //    empurrar as portas explicitamente via providerService.updatePorts().
+        List<PortDescription> ports = readPortsFromAgent();
+        if (!ports.isEmpty()) {
+            providerService.updatePorts(DEVICE_ID, ports);
+            log.info("Publicadas {} porta(s) Padtec no ONOS.", ports.size());
+        } else {
+            log.warn("Agente TCP (porta {}) não retornou portas. " +
+                     "Verifique se o PadtecManager subiu corretamente.", AGENT_PORT);
+        }
+    }
+
+    /**
+     * Conecta ao PadtecAgentServer (TCP 10151), lê o JSON e converte
+     * em lista de PortDescription para publicação no core do ONOS.
+     */
+    private List<PortDescription> readPortsFromAgent() {
+        List<PortDescription> ports = new ArrayList<>();
+        try (Socket socket = new Socket(AGENT_IP, AGENT_PORT);
+             InputStream in = socket.getInputStream()) {
+
+            byte[] buf = new byte[8192];
+            int n;
+            StringBuilder sb = new StringBuilder();
+            while ((n = in.read(buf)) != -1) {
+                sb.append(new String(buf, 0, n, StandardCharsets.UTF_8));
+            }
+
+            String jsonStr = sb.toString().trim();
+            log.info("JSON recebido do agente TCP:\n{}", jsonStr);
+
+            if (jsonStr.isEmpty() || "{}".equals(jsonStr)) {
+                log.warn("Agente TCP retornou JSON vazio — dados ainda não disponíveis.");
+                return ports;
+            }
+
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode root = mapper.readTree(jsonStr);
+            // Suporta array na raiz OU objeto {"devices":[...]}
+            JsonNode devicesNode = root.isArray() ? root : root.path("devices");
+
+            if (devicesNode.isArray()) {
+                int portIdx = 1;
+                for (JsonNode node : devicesNode) {
+                    String type    = node.path("type").asText();
+                    String name    = node.path("name").asText();
+                    JsonNode metrics = node.path("metrics");
+
+                    if ("Amplifier".equals(type)) {
+                        ports.add(DefaultPortDescription.builder()
+                                .withPortNumber(PortNumber.portNumber(portIdx++))
+                                .isEnabled(!metrics.path("isLOS").asBoolean(false))
+                                .type(Port.Type.FIBER)
+                                .annotations(DefaultAnnotations.builder()
+                                        .set("neName", name)
+                                        .set("gain", String.valueOf(
+                                                metrics.path("gain").asDouble()))
+                                        .build())
+                                .build());
+
+                    } else if ("OTNTransponder".equals(type) || "Transponder".equals(type)) {
+                        ports.add(DefaultPortDescription.builder()
+                                .withPortNumber(PortNumber.portNumber(portIdx++))
+                                .isEnabled(!metrics.path("isLOS").asBoolean(false))
+                                .type(Port.Type.OCH)
+                                .annotations(DefaultAnnotations.builder()
+                                        .set("neName", name)
+                                        .set("channel", metrics.path("channel").asText())
+                                        .build())
+                                .build());
+                    }
+                }
+                log.info("{} porta(s) parseada(s) do JSON do agente.", ports.size());
+            } else {
+                log.warn("JSON do agente não contém array 'devices'.");
+            }
+
+        } catch (Exception e) {
+            log.error("Falha ao conectar no agente TCP {}:{} — {}", AGENT_IP, AGENT_PORT, e.getMessage());
+        }
+        return ports;
     }
 
     @Deactivate
