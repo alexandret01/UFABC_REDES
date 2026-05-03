@@ -190,15 +190,25 @@ public class PadtecDeviceProvider implements DeviceProvider {
 
                     if ("Amplifier".equals(type)) {
                         boolean isLOS = metrics.path("isLOS").asBoolean(false);
+                        boolean isAGC = metrics.path("isAGC").asBoolean(false);
+                        DefaultAnnotations.Builder ampAnn = DefaultAnnotations.builder()
+                                .set("neName", name)
+                                .set("gain", String.valueOf(metrics.path("gain").asDouble()))
+                                .set("isLOS", String.valueOf(isLOS))
+                                .set("isAGC", String.valueOf(isAGC));
+                        if (!metrics.path("powerInput").isMissingNode()) {
+                            ampAnn.set("powerInput", metrics.path("powerInput").isNull()
+                                    ? "N/A" : String.valueOf(metrics.path("powerInput").asDouble()));
+                        }
+                        if (!metrics.path("powerOutput").isMissingNode()) {
+                            ampAnn.set("powerOutput", metrics.path("powerOutput").isNull()
+                                    ? "N/A" : String.valueOf(metrics.path("powerOutput").asDouble()));
+                        }
                         ports.add(DefaultPortDescription.builder()
                                 .withPortNumber(PortNumber.portNumber(portIdx++))
                                 .isEnabled(!isLOS)
                                 .type(Port.Type.FIBER)
-                                .annotations(DefaultAnnotations.builder()
-                                        .set("neName", name)
-                                        .set("gain", String.valueOf(metrics.path("gain").asDouble()))
-                                        .set("isLOS", String.valueOf(isLOS))
-                                        .build())
+                                .annotations(ampAnn.build())
                                 .build());
 
                     } else if ("OTNTransponder".equals(type) || "Transponder".equals(type)) {
