@@ -277,8 +277,9 @@ public class PadtecDeviceDescription extends AbstractHandlerBehaviour
                 String type    = node.path("type").asText();
                 JsonNode metrics = node.path("metrics");
 
-                long rxPower = 0L;
-                long txPower = 0L;
+                long rxPower  = 0L;
+                long txPower  = 0L;
+                long fecErrors = 0L;  // mapeado para packetsRxErrors
 
                 if ("Transponder".equals(type)) {
                     // Potência em dBm × 1000 para preservar casas decimais como long
@@ -296,6 +297,10 @@ public class PadtecDeviceDescription extends AbstractHandlerBehaviour
                     if (!metrics.path("outputPowerWDM").isMissingNode() && !metrics.path("outputPowerWDM").isNull()) {
                         txPower = Math.round(metrics.path("outputPowerWDM").asDouble() * 1000.0);
                     }
+                    // fecErrors → packetsRxErrors (contador real de erros FEC)
+                    if (!metrics.path("fecErrors").isMissingNode() && !metrics.path("fecErrors").isNull()) {
+                        fecErrors = metrics.path("fecErrors").asLong(0L);
+                    }
                 } else if ("Amplifier".equals(type)) {
                     // Amplifier: usa powerInput/powerOutput
                     if (!metrics.path("powerInput").isMissingNode() && !metrics.path("powerInput").isNull()) {
@@ -311,11 +316,11 @@ public class PadtecDeviceDescription extends AbstractHandlerBehaviour
                         .setPort(PortNumber.portNumber(portCounter++))
                         .setBytesReceived(0)
                         .setBytesSent(0)
-                        .setPacketsReceived(rxPower)   // inputPower  × 1000
-                        .setPacketsSent(txPower)       // outputPower × 1000
+                        .setPacketsReceived(rxPower)    // inputPower  × 1000 (dBm preservado como long)
+                        .setPacketsSent(txPower)        // outputPower × 1000
                         .setPacketsRxDropped(0)
                         .setPacketsTxDropped(0)
-                        .setPacketsRxErrors(0)
+                        .setPacketsRxErrors(fecErrors)  // contador real de erros FEC (OTNTransponder)
                         .setPacketsTxErrors(0)
                         .setDurationSec(now)
                         .setDurationNano(0)
