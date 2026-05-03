@@ -110,7 +110,12 @@ if [ -f "tools/add_cross_rest.py" ]; then
 fi
 
 # Injetar links estáticos da topologia do lab (Polatis outputs <-> Pica8 SFP+)
+# Nota: apagar antes de reinjetar garante que o netcfglinksprovider receba
+# o evento CONFIG_ADDED mesmo em re-execuções (sem delete, re-POST é no-op).
 if [ -f "tools/lab-topology.json" ]; then
+    curl -sS -X DELETE -u "$AUTH" \
+         "http://$ONOS_IP:8181/onos/v1/network/configuration/links" > /dev/null 2>&1
+    sleep 1
     curl -sS -X POST -H "content-type:application/json" \
          "http://$ONOS_IP:8181/onos/v1/network/configuration" \
          -d @tools/lab-topology.json --user "$AUTH" > /dev/null
