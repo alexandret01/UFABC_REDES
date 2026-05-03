@@ -36,7 +36,7 @@ public class PadtecManager {
     private static final String JAVA18 = "/usr/lib/jvm/jdk-18.0.2.1/bin/java";
 
     /** Diretório raiz do TailController (onde estão lib/ e os .class). */
-    private static final String TAIL_DIR = "/home/sdn/TailController";
+    private static final String TAIL_DIR = "/home/sdn/TailEndController";
 
     /** Classe principal do agente Padtec. */
     private static final String MAIN_CLASS = "PadtecMonitorJSON3";
