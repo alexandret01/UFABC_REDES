@@ -1,0 +1,22 @@
+{
+  "links": {
+    "netconf:172.17.36.21:830/10-of:5e3ec454441280b9/49": {
+      "basic": { "type": "OPTICAL", "durable": true }
+    },
+    "of:5e3ec454441280b9/49-netconf:172.17.36.21:830/10": {
+      "basic": { "type": "OPTICAL", "durable": true }
+    },
+    "netconf:172.17.36.21:830/9-of:5e3ec454441280b9/50": {
+      "basic": { "type": "OPTICAL", "durable": true }
+    },
+    "of:5e3ec454441280b9/50-netconf:172.17.36.21:830/9": {
+      "basic": { "type": "OPTICAL", "durable": true }
+    },
+    "netconf:172.17.36.22:830/10-of:5e3ec454443294fb/49": {
+      "basic": { "type": "OPTICAL", "durable": true }
+    },
+    "of:5e3ec454443294fb/49-netconf:172.17.36.22:830/10": {
+      "basic": { "type": "OPTICAL", "durable": true }
+    }
+  }
+}
