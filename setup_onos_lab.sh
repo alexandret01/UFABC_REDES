@@ -101,10 +101,18 @@ if [ -f "padtec-netcfg.json" ]; then
     echo -e "  -> Dispositivo Padtec configurado no netcfg."
 fi
 
-# Criar Cross-Connects
+# Criar Cross-Connects nos Polatis (não persistem após reinício do hardware)
 if [ -f "tools/add_cross_rest.py" ]; then
     python3 tools/add_cross_rest.py > /dev/null
-    echo "  -> Cross-connects criados."
+    echo "  -> Cross-connects criados (OXC1: 1→10, 2→9 | OXC2: 1→10)."
+fi
+
+# Injetar links estáticos da topologia do lab (Polatis outputs <-> Pica8 SFP+)
+if [ -f "tools/lab-topology.json" ]; then
+    curl -sS -X POST -H "content-type:application/json" \
+         "http://$ONOS_IP:8181/onos/v1/network/configuration" \
+         -d @tools/lab-topology.json --user "$AUTH" > /dev/null
+    echo "  -> Links Polatis↔Pica8 injetados na topologia."
 fi
 
 echo "========================================="

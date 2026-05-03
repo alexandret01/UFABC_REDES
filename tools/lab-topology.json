@@ -1,0 +1,35 @@
+{
+  "_comment": "Links estáticos do laboratório UFABC — Polatis outputs <-> Pica8 SFP+",
+  "_topologia": {
+    "OXC1": "netconf:172.17.36.21:830  (Polatis-1, serial 2819)",
+    "OXC2": "netconf:172.17.36.22:830  (Polatis-2, serial 2820)",
+    "Tor1": "of:5e3ec454441280b9  (Pica8 P3295, IP 172.17.36.210)",
+    "Tor2": "of:5e3ec454443294fb  (Pica8 P3295, IP 172.17.36.211)",
+    "cross_connects": "OXC1: ingress1→egress10, ingress2→egress9 | OXC2: ingress1→egress10",
+    "caminho_optico": [
+      "Padtec porta1 (C28) → OXC1 porta1 → [xconn 1→10] → OXC1 porta10 → Tor1 porta49",
+      "Padtec porta2 (C24) → OXC1 porta2 → [xconn 2→9]  → OXC1 porta9  → Tor1 porta50",
+      "Padtec porta3 (Trp) → OXC2 porta1 → [xconn 1→10] → OXC2 porta10 → Tor2 porta49"
+    ]
+  },
+  "links": {
+    "netconf:172.17.36.21:830/10-of:5e3ec454441280b9/49": {
+      "basic": { "type": "OPTICAL", "durable": true }
+    },
+    "of:5e3ec454441280b9/49-netconf:172.17.36.21:830/10": {
+      "basic": { "type": "OPTICAL", "durable": true }
+    },
+    "netconf:172.17.36.21:830/9-of:5e3ec454441280b9/50": {
+      "basic": { "type": "OPTICAL", "durable": true }
+    },
+    "of:5e3ec454441280b9/50-netconf:172.17.36.21:830/9": {
+      "basic": { "type": "OPTICAL", "durable": true }
+    },
+    "netconf:172.17.36.22:830/10-of:5e3ec454443294fb/49": {
+      "basic": { "type": "OPTICAL", "durable": true }
+    },
+    "of:5e3ec454443294fb/49-netconf:172.17.36.22:830/10": {
+      "basic": { "type": "OPTICAL", "durable": true }
+    }
+  }
+}
