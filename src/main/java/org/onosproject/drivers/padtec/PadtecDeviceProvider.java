@@ -247,18 +247,36 @@ public class PadtecDeviceProvider implements DeviceProvider {
                                 .set("channel", metrics.path("channel").asText())
                                 .set("isLOS", String.valueOf(isLOS));
 
-                        // Campos extras presentes nos Transponders (podem ser null/NaN no hardware)
-                        if (!metrics.path("inputPower").isMissingNode()) {
-                            ann.set("inputPower", metrics.path("inputPower").isNull()
-                                    ? "N/A" : String.valueOf(metrics.path("inputPower").asDouble()));
-                        }
-                        if (!metrics.path("outputPower").isMissingNode()) {
-                            ann.set("outputPower", metrics.path("outputPower").isNull()
-                                    ? "N/A" : String.valueOf(metrics.path("outputPower").asDouble()));
-                        }
-                        if (!metrics.path("lambda").isMissingNode()) {
-                            ann.set("lambda", String.valueOf(metrics.path("lambda").asDouble()));
-                        }
+                        // Campos comuns (Transponder genérico)
+                        setIfPresent(ann, metrics, "inputPower");
+                        setIfPresent(ann, metrics, "outputPower");
+                        setIfPresent(ann, metrics, "lambda");
+
+                        // Campos exclusivos do OTNTransponder (interface WDM)
+                        setIfPresent(ann, metrics, "inputPowerWDM");
+                        setIfPresent(ann, metrics, "outputPowerWDM");
+                        setIfPresent(ann, metrics, "isLOF");
+                        setIfPresent(ann, metrics, "isOff");
+
+                        // ODU-k (qualidade de sinal / erros)
+                        setIfPresent(ann, metrics, "bip8Rate");
+                        setIfPresent(ann, metrics, "beiRate");
+                        setIfPresent(ann, metrics, "isBDI");
+
+                        // FEC
+                        setIfPresent(ann, metrics, "fecName");
+                        setIfPresent(ann, metrics, "fecErrors");
+                        setIfPresent(ann, metrics, "fecRate");
+                        setIfPresent(ann, metrics, "fecRxEnabled");
+                        setIfPresent(ann, metrics, "fecTxEnabled");
+
+                        // Interface cliente
+                        setIfPresent(ann, metrics, "inputPowerClient");
+                        setIfPresent(ann, metrics, "outputPowerClient");
+                        setIfPresent(ann, metrics, "clientLambda");
+                        setIfPresent(ann, metrics, "isClientLOS");
+                        setIfPresent(ann, metrics, "isClientLOF");
+                        setIfPresent(ann, metrics, "isClientOff");
 
                         ports.add(DefaultPortDescription.builder()
                                 .withPortNumber(PortNumber.portNumber(portIdx++))
@@ -350,6 +368,31 @@ public class PadtecDeviceProvider implements DeviceProvider {
             log.debug("Erro ao ler estatísticas do agente: {}", e.getMessage());
         }
         return stats;
+    }
+
+    // -----------------------------------------------------------------------
+    // Helpers
+    // -----------------------------------------------------------------------
+
+    /**
+     * Adiciona campo de anotação apenas se presente no JSON e não nulo.
+     * Valores null JSON viram "N/A". Booleanos e números são convertidos para String.
+     */
+    private static void setIfPresent(DefaultAnnotations.Builder ann,
+                                     JsonNode metrics, String field) {
+        JsonNode node = metrics.path(field);
+        if (node.isMissingNode()) {
+            return;
+        }
+        if (node.isNull()) {
+            ann.set(field, "N/A");
+        } else if (node.isBoolean()) {
+            ann.set(field, String.valueOf(node.asBoolean()));
+        } else if (node.isNumber()) {
+            ann.set(field, String.valueOf(node.asDouble()));
+        } else {
+            ann.set(field, node.asText());
+        }
     }
 
     @Deactivate

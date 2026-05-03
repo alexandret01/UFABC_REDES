@@ -191,17 +191,36 @@ public class PadtecDeviceDescription extends AbstractHandlerBehaviour
                             .set("channel", metrics.path("channel").asText())
                             .set("isLOS", String.valueOf(isLOS));
 
-                    if (!metrics.path("inputPower").isMissingNode()) {
-                        ann.set("inputPower", metrics.path("inputPower").isNull()
-                                ? "N/A" : String.valueOf(metrics.path("inputPower").asDouble()));
-                    }
-                    if (!metrics.path("outputPower").isMissingNode()) {
-                        ann.set("outputPower", metrics.path("outputPower").isNull()
-                                ? "N/A" : String.valueOf(metrics.path("outputPower").asDouble()));
-                    }
-                    if (!metrics.path("lambda").isMissingNode()) {
-                        ann.set("lambda", String.valueOf(metrics.path("lambda").asDouble()));
-                    }
+                    // Campos comuns (Transponder genérico)
+                    setIfPresent(ann, metrics, "inputPower");
+                    setIfPresent(ann, metrics, "outputPower");
+                    setIfPresent(ann, metrics, "lambda");
+
+                    // Campos exclusivos do OTNTransponder (interface WDM)
+                    setIfPresent(ann, metrics, "inputPowerWDM");
+                    setIfPresent(ann, metrics, "outputPowerWDM");
+                    setIfPresent(ann, metrics, "isLOF");
+                    setIfPresent(ann, metrics, "isOff");
+
+                    // ODU-k
+                    setIfPresent(ann, metrics, "bip8Rate");
+                    setIfPresent(ann, metrics, "beiRate");
+                    setIfPresent(ann, metrics, "isBDI");
+
+                    // FEC
+                    setIfPresent(ann, metrics, "fecName");
+                    setIfPresent(ann, metrics, "fecErrors");
+                    setIfPresent(ann, metrics, "fecRate");
+                    setIfPresent(ann, metrics, "fecRxEnabled");
+                    setIfPresent(ann, metrics, "fecTxEnabled");
+
+                    // Interface cliente
+                    setIfPresent(ann, metrics, "inputPowerClient");
+                    setIfPresent(ann, metrics, "outputPowerClient");
+                    setIfPresent(ann, metrics, "clientLambda");
+                    setIfPresent(ann, metrics, "isClientLOS");
+                    setIfPresent(ann, metrics, "isClientLOF");
+                    setIfPresent(ann, metrics, "isClientOff");
 
                     ports.add(DefaultPortDescription.builder()
                             .withPortNumber(PortNumber.portNumber(portCounter++))
@@ -262,12 +281,28 @@ public class PadtecDeviceDescription extends AbstractHandlerBehaviour
                 long txPower = 0L;
 
                 if ("Transponder".equals(type)) {
-                    // Potência em dBm → multiplica por 1000 para preservar casas decimais como long
+                    // Potência em dBm × 1000 para preservar casas decimais como long
                     if (!metrics.path("inputPower").isMissingNode() && !metrics.path("inputPower").isNull()) {
                         rxPower = Math.round(metrics.path("inputPower").asDouble() * 1000.0);
                     }
                     if (!metrics.path("outputPower").isMissingNode() && !metrics.path("outputPower").isNull()) {
                         txPower = Math.round(metrics.path("outputPower").asDouble() * 1000.0);
+                    }
+                } else if ("OTNTransponder".equals(type)) {
+                    // OTNTransponder: usa potência WDM quando disponível
+                    if (!metrics.path("inputPowerWDM").isMissingNode() && !metrics.path("inputPowerWDM").isNull()) {
+                        rxPower = Math.round(metrics.path("inputPowerWDM").asDouble() * 1000.0);
+                    }
+                    if (!metrics.path("outputPowerWDM").isMissingNode() && !metrics.path("outputPowerWDM").isNull()) {
+                        txPower = Math.round(metrics.path("outputPowerWDM").asDouble() * 1000.0);
+                    }
+                } else if ("Amplifier".equals(type)) {
+                    // Amplifier: usa powerInput/powerOutput
+                    if (!metrics.path("powerInput").isMissingNode() && !metrics.path("powerInput").isNull()) {
+                        rxPower = Math.round(metrics.path("powerInput").asDouble() * 1000.0);
+                    }
+                    if (!metrics.path("powerOutput").isMissingNode() && !metrics.path("powerOutput").isNull()) {
+                        txPower = Math.round(metrics.path("powerOutput").asDouble() * 1000.0);
                     }
                 }
 
@@ -294,5 +329,30 @@ public class PadtecDeviceDescription extends AbstractHandlerBehaviour
         }
 
         return statsList;
+    }
+
+    // -----------------------------------------------------------------------
+    // Helpers
+    // -----------------------------------------------------------------------
+
+    /**
+     * Adiciona campo de anotação apenas se presente no JSON e não nulo.
+     * Valores null JSON viram "N/A". Booleanos e números são convertidos para String.
+     */
+    private static void setIfPresent(DefaultAnnotations.Builder ann,
+                                     JsonNode metrics, String field) {
+        JsonNode node = metrics.path(field);
+        if (node.isMissingNode()) {
+            return;
+        }
+        if (node.isNull()) {
+            ann.set(field, "N/A");
+        } else if (node.isBoolean()) {
+            ann.set(field, String.valueOf(node.asBoolean()));
+        } else if (node.isNumber()) {
+            ann.set(field, String.valueOf(node.asDouble()));
+        } else {
+            ann.set(field, node.asText());
+        }
     }
 }
