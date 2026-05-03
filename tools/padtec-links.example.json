@@ -1,30 +1,27 @@
 [
   {
-    "_comment": "Mapeamento físico Padtec SPVL4 <-> Polatis",
-    "_instrucoes": [
-      "1. Obtenha os IDs dos Polatis: curl -s -u onos:rocks http://localhost:8181/onos/v1/devices | python3 -m json.tool",
-      "2. Veja as portas Polatis: curl -s -u onos:rocks http://localhost:8181/onos/v1/devices/DEVICE_ID/ports | python3 -m json.tool",
-      "3. Preencha remoteDevice com o ID completo (ex: netconf:192.168.1.10/830)",
-      "4. Copie este arquivo para /home/sdn/padtec-links.json",
-      "5. Reinstale o driver: mvn clean package -DskipTests e faça DELETE+POST"
-    ]
+    "_comment": "Topologia física verificada — Padtec SPVL4 <-> Polatis (UFABC, lab 172.17.36.x)",
+    "_polatis1": "netconf:172.17.36.21:830  (serial 2819, 8x8, portas 1-8=INPUT / 9-16=OUTPUT)",
+    "_polatis2": "netconf:172.17.36.22:830  (serial 2820, 8x8, portas 1-8=INPUT / 9-16=OUTPUT)",
+    "_cross_connects": "Polatis-1: 1->10, 2->9  |  Polatis-2: 1->10, 2->9  (via add_cross_rest.py)",
+    "_nota": "Cross-connects não persistem após reinício do Polatis — rode add_cross_rest.py no setup"
   },
   {
     "padtecPort": 1,
-    "remoteDevice": "netconf:POLATIS_IP/830",
+    "remoteDevice": "netconf:172.17.36.21:830",
     "remotePort": 1,
-    "_descricao": "T100DCT-4GTT2L#2 (C28) <-> Polatis porta X"
+    "_descricao": "T100DCT-4GTT2L#2 (C28, OTNTransponder) <-> Polatis-1 porta 1 (INPUT)"
   },
   {
     "padtecPort": 2,
-    "remoteDevice": "netconf:POLATIS_IP/830",
+    "remoteDevice": "netconf:172.17.36.21:830",
     "remotePort": 2,
-    "_descricao": "T100DCT-4GTT2L#27 (C24) <-> Polatis porta Y"
+    "_descricao": "T100DCT-4GTT2L#27 (C24, OTNTransponder) <-> Polatis-1 porta 2 (INPUT)"
   },
   {
     "padtecPort": 3,
-    "remoteDevice": "netconf:POLATIS_IP/830",
-    "remotePort": 3,
-    "_descricao": "T25DC26-4BRE4L#10 (Transponder) <-> Polatis porta Z"
+    "remoteDevice": "netconf:172.17.36.22:830",
+    "remotePort": 1,
+    "_descricao": "T25DC26-4BRE4L#10 (Transponder generico) <-> Polatis-2 porta 1 (INPUT)"
   }
 ]

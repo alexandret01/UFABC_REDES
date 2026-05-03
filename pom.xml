@@ -17,6 +17,8 @@
     <onos.app.category>Drivers</onos.app.category>
     <onos.app.title>Padtec ONOS Driver</onos.app.title>
     <onos.app.url>http://onosproject.org</onos.app.url>
+    <!-- Dependências declaradas aqui são ativadas automaticamente ao instalar o OAR -->
+    <onos.app.requires>org.onosproject.optical-model,org.onosproject.faultmanagement</onos.app.requires>
   </properties>
   <dependencies>
     <dependency><groupId>org.onosproject</groupId><artifactId>onos-api</artifactId><version>${onos.version}</version><scope>provided</scope></dependency>
@@ -41,12 +43,6 @@
             </goals>
           </execution>
         </executions>
-        <configuration>
-            <onos.app.requires>
-                org.onosproject.optical-model,
-                org.onosproject.faultmanagement
-            </onos.app.requires>
-        </configuration>
       </plugin>
       <plugin>
         <groupId>org.apache.felix</groupId>
