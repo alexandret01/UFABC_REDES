@@ -67,6 +67,8 @@ APPS=(
   "org.onosproject.faultmanagement"
   # Links estáticos e descoberta
   "org.onosproject.linkdiscovery"
+  # Publica links definidos no netcfg (Polatis <-> Pica8) na topologia
+  "org.onosproject.provider.netcfglinks"
 )
 
 for app in "${APPS[@]}"; do
