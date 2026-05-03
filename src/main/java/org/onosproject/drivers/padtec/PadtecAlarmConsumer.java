@@ -113,7 +113,7 @@ public class PadtecAlarmConsumer extends AbstractHandlerBehaviour implements Ala
                             "Loss of Signal no equipamento " + neName + " (tipo: " + type + ")",
                             SeverityLevel.CRITICAL,
                             System.currentTimeMillis()
-                    ).forSource(deviceId).build());
+                    ).build());
                 }
             }
 
