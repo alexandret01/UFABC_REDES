@@ -1,62 +1,182 @@
-# Driver ONOS - Equipamentos Padtec SPVL4 (UFABC)
+# Driver ONOS — Equipamentos Padtec SPVL4 (UFABC)
 
-Este repositório contém o driver ONOS desenvolvido para a UFABC que se comunica de forma nativa com equipamentos ópticos Padtec (placa SPVL4, Transponders OTN, Amplificadores). A lógica de descoberta de equipamentos, antes executada por scripts isolados, foi totalmente reestruturada para o ecossistema moderno do ONOS (OSGi).
-
-## Como a Arquitetura Funciona?
-
-O projeto utiliza uma **Arquitetura Totalmente Integrada**. A lógica do `TailEndController` (incluindo o `PadtecMonitorJSON3` e o `PadtecAgentServer`) foi movida para dentro do próprio driver ONOS.
-
-* **O `PadtecManager`**: Um componente OSGi que, ao ser ativado, inicia duas threads: uma para o `PadtecAgentServer` (servidor TCP na porta 10151) e outra para o `PadtecMonitorJSON3` (que se conecta ao `Supervisor` e alimenta o agente com dados).
-* **O Driver ONOS (`PadtecDeviceDescription.java`)**: Fica acoplado dentro do ONOS e se comunica com o `PadtecAgentServer` via socket TCP na porta 10151, consumindo os dados em JSON e traduzindo-os para o modelo de portas do ONOS.
+Driver ONOS para integração nativa com equipamentos ópticos Padtec (placa SPVL4, Transponders OTN, Amplificadores) no laboratório de redes ópticas da UFABC.
 
 ---
 
-## 1. Como Compilar o Driver do ONOS
+## Arquitetura
 
-Abra um terminal na raiz do projeto (onde está o arquivo `pom.xml`) e execute o Maven:
-
-```bash
-mvn clean install
+```
+┌─────────────────────────────────────────────────────┐
+│                    ONOS (Java 11)                   │
+│                                                     │
+│  PadtecManager          PadtecDeviceProvider        │
+│  (OSGi Component)       (OSGi Component)            │
+│       │                       │                     │
+│       │ ProcessBuilder        │ Timer 45s           │
+│       ▼                       ▼                     │
+│  [Java 18 process]     injectDevice()               │
+│  PadtecMonitorJSON3    updatePorts()                │
+│  + PadtecAgentServer   updatePortStatistics()       │
+│       │  TCP :10151           │ TCP :10151          │
+│       └───────────────────────┘                     │
+└─────────────────────────────────────────────────────┘
+         │ SNMP/proprietário
+         ▼
+   Supervisor Padtec
+   172.17.36.50:8886
 ```
 
-*(O driver foi configurado para embutir as dependências do `TailEndController` e para compilar com Java 11, garantindo um **BUILD SUCCESS** imediato).*
+**Fluxo completo:**
+1. ONOS ativa → `PadtecManager` detecta se porta 10151 está livre
+2. Se livre, lança `PadtecMonitorJSON3` via `ProcessBuilder` (Java 18, `/home/sdn/TailEndController`)
+3. O monitor conecta ao hardware real (`172.17.36.50`) e inicia `PadtecAgentServer` na porta TCP 10151
+4. Após 45s, `PadtecDeviceProvider` conecta ao agente, lê o JSON e registra o device + portas no ONOS
+5. A cada 60s, estatísticas de porta são atualizadas automaticamente
+
+**Não é necessário rodar `monitor.sh` manualmente.**
 
 ---
 
-## 2. Como Subir o Laboratório Completo
+## Pré-requisitos
 
-Para não precisar rodar vários comandos na mão para levantar a rede (ONOS + Polatis + Padtec + Cross-connects), o projeto fornece um script automatizado (`setup_onos_lab.sh`).
+| Componente | Versão | Localização |
+|------------|--------|-------------|
+| ONOS | 2.7.0 / 3.0.0-SNAPSHOT | `/tmp/onos-3.0.0-SNAPSHOT` |
+| Java (ONOS) | 11 | `/tmp/onos-3.0.0-SNAPSHOT-jdk` |
+| Java (Monitor) | 18 | `/usr/lib/jvm/jdk-18.0.2.1` |
+| TailEndController | — | `/home/sdn/TailEndController` |
+| Hardware Padtec | SPVL4 | `172.17.36.50:8886` |
 
-No terminal raiz, apenas rode:
+---
+
+## Como compilar
 
 ```bash
+cd /home/sdn/onos27/drivers/padtec/git/UFABC_REDES
+mvn clean package -DskipTests
+# Gera: target/onos-drivers-padtec-2.7.0.oar
+```
+
+---
+
+## Como subir o laboratório
+
+```bash
+# Inicia ONOS + Polatis + Padtec + cross-connects
 sudo ./setup_onos_lab.sh
 ```
 
-**O que este script faz:**
-1. Inicia o ONOS localmente via Bazel (`onos-local`).
-2. Espera 90 segundos para a API REST do ONOS estabilizar.
-3. Envia via cURL os JSONs com a configuração Netconf dos Switches Polatis (OXC 1 e 2).
-4. Instala o Driver da Padtec recém-compilado (`.oar`) no ONOS via REST.
-5. Injeta a topologia e o IP de gerência do Padtec (`padtec-netcfg.json`).
-6. Executa o script Python (`add_cross_rest.py`) para criar as rotas cruzadas nos Polatis.
+**O script automatiza:**
+1. Inicia o ONOS (Karaf/Bazel)
+2. Aguarda a API REST estabilizar
+3. Configura os switches Polatis via NETCONF
+4. Instala o driver Padtec (`.oar`)
+5. Injeta a topologia (`padtec-netcfg.json`)
+6. Cria cross-connects nos Polatis (`add_cross_rest.py`)
+
+Após ~45s do ONOS subir, o equipamento Padtec aparece automaticamente com as portas reais.
 
 ---
 
-## 3. Como Visualizar na Interface
+## Como atualizar o driver (após mudança de código)
 
-Assim que o script finalizar o passo 5, o `PadtecManager` iniciará o agente e o monitor. O driver ONOS então se conectará ao agente e começará a ler os dados.
+```bash
+# 1. Compilar
+mvn clean package -DskipTests
 
-1. Acesse o painel do ONOS: `http://172.17.36.231:8181/onos/ui` (Usuário: `onos`, Senha: `rocks`).
-2. Na aba **Devices**, o equipamento deverá aparecer listado como `TERMINAL_DEVICE` (Nome: `Padtec-SPVL4`).
-3. Clique no equipamento e em seguida no botão de **Portas** para ver a lista de Amplificadores (FIBER) e Transponders (OCH) lidos em tempo real!
-4. Na aba **Alarms**, se um Transponder físico ficar sem sinal (`LOS = true`), um triângulo crítico aparecerá no painel.
+# 2. Remover versão antiga
+curl -u onos:rocks -X DELETE \
+  http://localhost:8181/onos/v1/applications/org.onosproject.drivers.padtec
+
+sleep 3
+
+# 3. Instalar nova versão
+curl -u onos:rocks -X POST \
+  -H "Content-Type: application/octet-stream" \
+  "http://localhost:8181/onos/v1/applications?activate=true" \
+  --data-binary @target/onos-drivers-padtec-2.7.0.oar
+```
 
 ---
 
-### Estrutura Final do Repositório
+## Verificação
 
-* `/src/main/java/org/onosproject/drivers/padtec` -> Classes do Driver ONOS.
-* `/src/main/java/br/ufabc/controlplane/metropad` -> Código do `TailEndController` integrado.
-* `setup_onos_lab.sh` -> O cérebro de implantação contínua (Shell script unificado).
-* `pom.xml` -> Configuração do Maven com as dependências do `TailEndController` embutidas.
+```bash
+# Device e anotações (lastCollected, supervisor)
+curl -s -u onos:rocks \
+  http://localhost:8181/onos/v1/devices/padtec:172.17.36.50 | python3 -m json.tool
+
+# Portas com canal, inputPower, outputPower, isLOS
+curl -s -u onos:rocks \
+  http://localhost:8181/onos/v1/devices/padtec:172.17.36.50/ports | python3 -m json.tool
+
+# Estatísticas de porta (atualiza a cada 60s)
+curl -s -u onos:rocks \
+  http://localhost:8181/onos/v1/statistics/ports/padtec:172.17.36.50 | python3 -m json.tool
+
+# Alarmes LOS ativos
+curl -s -u onos:rocks \
+  "http://localhost:8181/onos/v1/alarms?devId=padtec:172.17.36.50" | python3 -m json.tool
+
+# Log do monitor Java 18
+tail -f /tmp/padtec_monitor.log
+```
+
+---
+
+## Dados expostos no ONOS
+
+### Device (`padtec:172.17.36.50`)
+| Anotação | Exemplo |
+|----------|---------|
+| `lastCollected` | `2026-05-03_10-32-39` |
+| `supervisor` | `172.17.36.50:8886` |
+
+### Portas (OCH)
+| Anotação | Descrição |
+|----------|-----------|
+| `neName` | Nome do equipamento (ex: `T100DCT-4GTT2L#2`) |
+| `type` | `OTNTransponder` ou `Transponder` |
+| `channel` | Canal DWDM (ex: `C28`, `C24`) |
+| `isLOS` | `true` se sem sinal óptico |
+| `inputPower` | Potência de entrada em dBm (ou `N/A`) |
+| `outputPower` | Potência de saída em dBm (ou `N/A`) |
+| `lambda` | Comprimento de onda em nm |
+
+### Alarmes
+- Gerado automaticamente quando `isLOS=true` → severidade **CRITICAL**
+- Visível em `/onos/v1/alarms` e na aba **Alarms** da GUI
+
+---
+
+## Interface gráfica
+
+Acesse: `http://172.17.36.231:8181/onos/ui` (usuário: `onos`, senha: `rocks`)
+
+- **Devices** → `Padtec-SPVL4` aparece como `OPTICAL_AMPLIFIER` com 3 portas OCH
+- **Ports** → lista os transponders com canal e status em tempo real
+- **Alarms** → alarmes LOS críticos quando um transponder perde sinal
+
+---
+
+## Estrutura do repositório
+
+```
+src/main/java/org/onosproject/drivers/padtec/
+├── PadtecManager.java            # Lança PadtecMonitorJSON3 via ProcessBuilder
+├── PadtecDeviceProvider.java     # Registra device + portas + estatísticas no ONOS
+├── PadtecDeviceDescription.java  # Driver: discoverPortDetails, discoverPortStatistics
+├── PadtecAlarmConsumer.java      # Gera alarmes LOS a partir do JSON do hardware
+├── PadtecLambdaQuery.java        # Lambdas disponíveis (banda C, grid 50 GHz)
+├── PadtecFlowRuleProgrammable.java
+├── PadtecDriversLoader.java
+└── ...
+
+src/main/resources/
+├── padtec-drivers.xml            # Declaração do driver e behaviours
+└── OSGI-INF/                     # Metadados OSGi gerados automaticamente
+
+setup_onos_lab.sh                 # Script de inicialização completo do lab
+pom.xml                           # Build Maven (Java 11, OSGi bundle)
+```
