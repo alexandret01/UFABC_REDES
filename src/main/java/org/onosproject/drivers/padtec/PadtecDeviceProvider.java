@@ -1,5 +1,6 @@
 package org.onosproject.drivers.padtec;
 
+import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.onosproject.net.DefaultAnnotations;
@@ -31,6 +32,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.regex.Pattern;
 
 import static org.slf4j.LoggerFactory.getLogger;
 
@@ -58,6 +60,12 @@ public class PadtecDeviceProvider implements DeviceProvider {
     private static final String AGENT_IP   = "127.0.0.1";
     private static final int    AGENT_PORT = 10151;
 
+    /** Substitui NaN por null antes de parsear (NaN não é JSON padrão). */
+    private static final Pattern NAN_PATTERN = Pattern.compile(":\\s*NaN");
+
+    /** Timestamp da última coleta — atualizado em readPortsFromAgent(). */
+    private volatile String lastCollected = "unknown";
+
     @Activate
     public void activate() {
         providerService = providerRegistry.register(this);
@@ -77,6 +85,10 @@ public class PadtecDeviceProvider implements DeviceProvider {
     private void injectDevice() {
         log.info("Injetando equipamento Padtec {} no core do ONOS...", DEVICE_ID);
 
+        // 1. Lê portas primeiro — também preenche lastCollected com o timestamp do JSON
+        List<PortDescription> ports = readPortsFromAgent();
+
+        // 2. Registra o dispositivo com o timestamp da última coleta nas anotações
         DeviceDescription desc = new DefaultDeviceDescription(
                 DEVICE_ID.uri(),
                 Device.Type.OPTICAL_AMPLIFIER,
@@ -86,18 +98,16 @@ public class PadtecDeviceProvider implements DeviceProvider {
                 "TCP-Agent",
                 new ChassisId(),
                 true,
-                DefaultAnnotations.EMPTY
+                DefaultAnnotations.builder()
+                        .set("lastCollected", lastCollected)
+                        .set("supervisor", "172.17.36.50:8886")
+                        .build()
         );
 
-        // 1. Registra o dispositivo no core do ONOS
         providerService.deviceConnected(DEVICE_ID, desc);
-        log.info("Dispositivo Padtec registrado.");
+        log.info("Dispositivo Padtec registrado (última coleta: {}).", lastCollected);
 
-        // 2. Lê as portas do agente TCP e publica via updatePorts().
-        //    IMPORTANTE: para providers customizados o ONOS NÃO chama
-        //    DeviceDescriptionDiscovery automaticamente — o provider deve
-        //    empurrar as portas explicitamente via providerService.updatePorts().
-        List<PortDescription> ports = readPortsFromAgent();
+        // 3. Publica as portas
         if (!ports.isEmpty()) {
             providerService.updatePorts(DEVICE_ID, ports);
             log.info("Publicadas {} porta(s) Padtec no ONOS.", ports.size());
@@ -123,17 +133,24 @@ public class PadtecDeviceProvider implements DeviceProvider {
                 sb.append(new String(buf, 0, n, StandardCharsets.UTF_8));
             }
 
-            String jsonStr = sb.toString().trim();
-            log.info("JSON recebido do agente TCP:\n{}", jsonStr);
-
-            if (jsonStr.isEmpty() || "{}".equals(jsonStr)) {
+            String raw = sb.toString().trim();
+            if (raw.isEmpty() || "{}".equals(raw)) {
                 log.warn("Agente TCP retornou JSON vazio — dados ainda não disponíveis.");
                 return ports;
             }
 
+            // Pegar apenas o primeiro bloco JSON e substituir NaN por null
+            String jsonStr = raw.contains("\n\n") ? raw.split("\n\n")[0] : raw;
+            jsonStr = NAN_PATTERN.matcher(jsonStr).replaceAll(": null");
+
+            log.info("JSON recebido do agente TCP:\n{}", jsonStr);
+
             ObjectMapper mapper = new ObjectMapper();
-            mapper.configure(com.fasterxml.jackson.core.JsonParser.Feature.ALLOW_NON_NUMERIC_NUMBERS, true);
+            mapper.configure(JsonParser.Feature.ALLOW_NON_NUMERIC_NUMBERS, true);
             JsonNode root = mapper.readTree(jsonStr);
+
+            // Captura timestamp da última coleta do hardware
+            lastCollected = root.path("timestamp").asText("unknown");
             // Suporta array na raiz OU objeto {"devices":[...]}
             JsonNode devicesNode = root.isArray() ? root : root.path("devices");
 
