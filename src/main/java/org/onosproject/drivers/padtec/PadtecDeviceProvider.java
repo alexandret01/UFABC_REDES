@@ -132,6 +132,7 @@ public class PadtecDeviceProvider implements DeviceProvider {
             }
 
             ObjectMapper mapper = new ObjectMapper();
+            mapper.configure(com.fasterxml.jackson.core.JsonParser.Feature.ALLOW_NON_NUMERIC_NUMBERS, true);
             JsonNode root = mapper.readTree(jsonStr);
             // Suporta array na raiz OU objeto {"devices":[...]}
             JsonNode devicesNode = root.isArray() ? root : root.path("devices");

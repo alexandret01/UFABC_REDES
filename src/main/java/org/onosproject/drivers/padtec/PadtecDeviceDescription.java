@@ -98,6 +98,7 @@ public class PadtecDeviceDescription extends AbstractHandlerBehaviour
             }
 
             ObjectMapper mapper = new ObjectMapper();
+            mapper.configure(com.fasterxml.jackson.core.JsonParser.Feature.ALLOW_NON_NUMERIC_NUMBERS, true);
             JsonNode rootNode = mapper.readTree(jsonString);
 
             // Suporta tanto array na raiz quanto objeto {"devices":[...]}
