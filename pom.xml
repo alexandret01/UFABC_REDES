@@ -43,7 +43,8 @@
         </executions>
         <configuration>
             <onos.app.requires>
-                org.onosproject.optical-model
+                org.onosproject.optical-model,
+                org.onosproject.faultmanagement
             </onos.app.requires>
         </configuration>
       </plugin>
