@@ -175,9 +175,12 @@ public class PadtecDeviceDescription extends AbstractHandlerBehaviour
                         ampAnn.set("powerOutput", metrics.path("powerOutput").isNull()
                                 ? "N/A" : String.valueOf(metrics.path("powerOutput").asDouble()));
                     }
+                    // isLOS é alarme de sinal — não afeta estado administrativo da porta.
+                    // A porta permanece habilitada para que o ONOS possa criar links mesmo
+                    // quando não há sinal óptico (ex: OXC sem cross-connect configurado).
                     ports.add(DefaultPortDescription.builder()
                             .withPortNumber(PortNumber.portNumber(portCounter++))
-                            .isEnabled(!isLOS)
+                            .isEnabled(true)
                             .type(Port.Type.FIBER)
                             .annotations(ampAnn.build())
                             .build());
@@ -222,9 +225,12 @@ public class PadtecDeviceDescription extends AbstractHandlerBehaviour
                     setIfPresent(ann, metrics, "isClientLOF");
                     setIfPresent(ann, metrics, "isClientOff");
 
+                    // isLOS é alarme de sinal — não afeta estado administrativo da porta.
+                    // A porta permanece habilitada para permitir criação de links ópticos
+                    // mesmo durante perda de sinal WDM (aguardando cross-connect no OXC).
                     ports.add(DefaultPortDescription.builder()
                             .withPortNumber(PortNumber.portNumber(portCounter++))
-                            .isEnabled(!isLOS)
+                            .isEnabled(true)
                             .type(Port.Type.OCH)
                             .annotations(ann.build())
                             .build());
