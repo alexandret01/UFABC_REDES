@@ -75,10 +75,15 @@ for app in "${APPS[@]}"; do
   curl -sS -X POST -u "$AUTH" "http://$ONOS_IP:8181/onos/v1/applications/$app/active" > /dev/null
 done
 
-# OXC1 (172.17.36.21) está com defeito — não registrar no ONOS
-echo "  [AVISO] OXC1 (172.17.36.21) com defeito — netconf-cfg1.json ignorado."
+# OXC1 (172.17.36.21) — com defeito, mas registrado no ONOS (5 dispositivos na topologia)
+if [ -f "tools/netconf-cfg1.json" ]; then
+    curl -sS -X POST -H "content-type:application/json" \
+         "http://$ONOS_IP:8181/onos/v1/network/configuration" \
+         -d @tools/netconf-cfg1.json --user "$AUTH" > /dev/null
+    echo "  -> OXC1 (172.17.36.21) registrado no ONOS [COM DEFEITO — ficará offline/unreachable]."
+fi
 
-# OXC2 (172.17.36.22) — único OXC ativo no momento
+# OXC2 (172.17.36.22) — ativo, cross-connects 1↔13 e 5↔9
 if [ -f "tools/netconf-cfg2.json" ]; then
     curl -sS -X POST -H "content-type:application/json" \
          "http://$ONOS_IP:8181/onos/v1/network/configuration" \
@@ -106,7 +111,7 @@ fi
 # Criar Cross-Connects nos Polatis (não persistem após reinício do hardware)
 if [ -f "tools/add_cross_rest.py" ]; then
     python3 tools/add_cross_rest.py > /dev/null
-    echo "  -> Cross-connects criados (OXC1: 1→10, 2→9 | OXC2: 1→10)."
+    echo "  -> Cross-connects criados no OXC2 (1→13 e 5→9). OXC1 fora de uso."
 fi
 
 # Injetar links estáticos da topologia do lab (Polatis outputs <-> Pica8 SFP+)
@@ -119,7 +124,7 @@ if [ -f "tools/lab-topology.json" ]; then
     curl -sS -X POST -H "content-type:application/json" \
          "http://$ONOS_IP:8181/onos/v1/network/configuration" \
          -d @tools/lab-topology.json --user "$AUTH" > /dev/null
-    echo "  -> Links Polatis↔Pica8 injetados na topologia."
+    echo "  -> Links da topologia injetados (PAV↔Padtec DIRECT + Padtec↔OXC2 OPTICAL)."
 fi
 
 echo "========================================="
