@@ -286,7 +286,36 @@ public class PadtecDeviceProvider implements DeviceProvider {
                                 .build());
                     }
                 }
-                log.info("{} porta(s) parseada(s) do JSON do agente.", ports.size());
+                // Segunda passagem: portas CLIENTE (lado LR/Ethernet) dos OTNTransponders.
+                // Porta 4 = T100DCT#2 cliente (→ PAV1/49)
+                // Porta 5 = T100DCT#27 cliente (→ PAV2/49)
+                for (JsonNode node : devicesNode) {
+                    String type    = node.path("type").asText();
+                    String name    = node.path("name").asText();
+                    JsonNode metrics = node.path("metrics");
+
+                    if ("OTNTransponder".equals(type)) {
+                        DefaultAnnotations.Builder clientAnn = DefaultAnnotations.builder()
+                                .set("neName", name)
+                                .set("type", type)
+                                .set("side", "client");
+                        setIfPresent(clientAnn, metrics, "inputPowerClient");
+                        setIfPresent(clientAnn, metrics, "outputPowerClient");
+                        setIfPresent(clientAnn, metrics, "clientLambda");
+                        setIfPresent(clientAnn, metrics, "isClientLOS");
+                        setIfPresent(clientAnn, metrics, "isClientLOF");
+                        setIfPresent(clientAnn, metrics, "isClientOff");
+
+                        ports.add(DefaultPortDescription.builder()
+                                .withPortNumber(PortNumber.portNumber(portIdx++))
+                                .isEnabled(true)
+                                .type(Port.Type.COPPER)
+                                .portSpeed(10000L)   // 10G LR
+                                .annotations(clientAnn.build())
+                                .build());
+                    }
+                }
+                log.info("{} porta(s) parseada(s) do JSON do agente (WDM + cliente).", ports.size());
             } else {
                 log.warn("JSON do agente não contém array 'devices'.");
             }
