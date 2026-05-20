@@ -33,12 +33,13 @@ oxc2 = requests.post(
         'Accept': 'application/yang-data+json',
         'Content-Type': 'application/yang-data+json'
     },
+    # Polatis 8x8: portas 1-8 são INPUT (ingress), portas 9-16 são OUTPUT (egress).
+    # Não é possível usar portas 9-16 como ingress — a API retorna HTTP 400.
+    # Cada par define uma direção unidirecional: sinal que entra no ingress sai no egress.
     data=json.dumps({
         "pair": [
-            {"ingress": 1,  "egress": 13},   # T100DCT#2 TX  -> T100DCT#27 RX
-            {"ingress": 13, "egress": 1},    # T100DCT#27 RX -> T100DCT#2 TX (retorno)
-            {"ingress": 5,  "egress": 9},    # T100DCT#27 TX -> T100DCT#2 RX
-            {"ingress": 9,  "egress": 5}     # T100DCT#2 RX  -> T100DCT#27 TX (retorno)
+            {"ingress": 1, "egress": 13},   # T100DCT#2 TX  -> OXC2(1->13) -> T100DCT#27 RX
+            {"ingress": 5, "egress": 9}     # T100DCT#27 TX -> OXC2(5->9)  -> T100DCT#2  RX
         ]
     }),
     verify=False
