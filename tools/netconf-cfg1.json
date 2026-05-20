@@ -11,7 +11,9 @@
         "idle-timeout": 300
       },
       "basic": {
-        "driver": "polatis-netconf"
+        "driver": "polatis-netconf",
+        "allowed": false,
+        "name": "OXC1-DEFEITO"
       }
     }
   }
