@@ -4,7 +4,7 @@
       "netconf": {
         "ip": "172.17.36.21",
         "port": 830,
-        "username": "admin",
+        "username": "root",
         "password": "root",
         "connect-timeout": 30,
         "reply-timeout": 30,
