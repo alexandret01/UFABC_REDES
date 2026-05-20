@@ -12,7 +12,6 @@
       },
       "basic": {
         "driver": "polatis-netconf",
-        "allowed": false,
         "name": "OXC1-DEFEITO"
       }
     }
