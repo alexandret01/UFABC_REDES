@@ -75,15 +75,15 @@ for app in "${APPS[@]}"; do
   curl -sS -X POST -u "$AUTH" "http://$ONOS_IP:8181/onos/v1/applications/$app/active" > /dev/null
 done
 
-if [ -f "tools/netconf-cfg1.json" ]; then
-    curl -sS -X POST -H "content-type:application/json" \
-         "http://$ONOS_IP:8181/onos/v1/network/configuration" \
-         -d @tools/netconf-cfg1.json --user "$AUTH" > /dev/null
-fi
+# OXC1 (172.17.36.21) está com defeito — não registrar no ONOS
+echo "  [AVISO] OXC1 (172.17.36.21) com defeito — netconf-cfg1.json ignorado."
+
+# OXC2 (172.17.36.22) — único OXC ativo no momento
 if [ -f "tools/netconf-cfg2.json" ]; then
     curl -sS -X POST -H "content-type:application/json" \
          "http://$ONOS_IP:8181/onos/v1/network/configuration" \
          -d @tools/netconf-cfg2.json --user "$AUTH" > /dev/null
+    echo "  -> OXC2 (172.17.36.22) registrado no ONOS."
 fi
 
 # 4. Instalar e Configurar o Driver Padtec
