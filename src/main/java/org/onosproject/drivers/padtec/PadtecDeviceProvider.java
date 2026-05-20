@@ -234,7 +234,7 @@ public class PadtecDeviceProvider implements DeviceProvider {
                         }
                         ports.add(DefaultPortDescription.builder()
                                 .withPortNumber(PortNumber.portNumber(portIdx++))
-                                .isEnabled(!isLOS)
+                                .isEnabled(true)   // isLOS é alarme de sinal, não estado administrativo
                                 .type(Port.Type.FIBER)
                                 .annotations(ampAnn.build())
                                 .build());
@@ -280,7 +280,7 @@ public class PadtecDeviceProvider implements DeviceProvider {
 
                         ports.add(DefaultPortDescription.builder()
                                 .withPortNumber(PortNumber.portNumber(portIdx++))
-                                .isEnabled(!isLOS)
+                                .isEnabled(true)   // isLOS é alarme de sinal, não estado administrativo
                                 .type(Port.Type.OCH)
                                 .annotations(ann.build())
                                 .build());
