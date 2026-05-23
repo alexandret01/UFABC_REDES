@@ -77,7 +77,9 @@ def snapshot():
     else:
         try:
             data = json.loads(body)
-            pairs = data.get("pair", [])
+            # Polatis retorna {"optical-switch:cross-connects": {"pair": [...]}}
+            root = data.get("optical-switch:cross-connects", data)
+            pairs = root.get("pair", [])
             if pairs:
                 print(f"  ✓ {len(pairs)} par(es) configurado(s):")
                 for p in pairs:

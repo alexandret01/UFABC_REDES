@@ -29,18 +29,16 @@ PAIRS = {"pair": [
     {"ingress": 1, "egress": 13},
     {"ingress": 5, "egress": 9}
 ]}
-INTERVAL = 20  # segundos entre re-aplicações
+INTERVAL = 60  # segundos entre re-aplicações (PUT persiste; 60s é suficiente)
 
 def apply_cross():
-    """Apaga e recria os cross-connects. Retorna True se OK."""
-    # DELETE primeiro para evitar conflitos
-    requests.delete(f"{BASE}/api/data/optical-switch:cross-connects",
-                    auth=AUTH, headers=HDR, verify=False, timeout=10)
-    time.sleep(0.3)
-    r = requests.post(
+    """Sobrescreve os cross-connects via PUT (persiste; POST some em 5s). Retorna (ok, status)."""
+    # PUT com namespace completo = substitui toda a coleção de forma persistente.
+    # NÃO usar POST: o Polatis trata POST como candidato e descarta após ~5s.
+    r = requests.put(
         f"{BASE}/api/data/optical-switch:cross-connects",
         auth=AUTH, headers=HDR,
-        data=json.dumps(PAIRS),
+        data=json.dumps({"optical-switch:cross-connects": PAIRS}),
         verify=False, timeout=10
     )
     return r.status_code in (200, 201, 204), r.status_code
@@ -75,11 +73,12 @@ try:
             print("Modo --once: saindo após primeira aplicação.")
             break
 
-        # Monitora durante o intervalo
-        time.sleep(5)
+        # Verifica após 10s para confirmar que PUT persistiu
+        time.sleep(10)
         if not check_cross():
-            print(f"[{time.strftime('%H:%M:%S')}]       ⚠ Cross-connects já sumiram após 5s!", flush=True)
-        time.sleep(INTERVAL - 5)
+            print(f"[{time.strftime('%H:%M:%S')}]       ⚠ Cross-connects sumiram mesmo com PUT! Re-aplicando...", flush=True)
+            apply_cross()
+        time.sleep(INTERVAL - 10)
 
 except KeyboardInterrupt:
     print("\n[Interrompido pelo usuário]")
