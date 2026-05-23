@@ -108,10 +108,18 @@ if [ -f "padtec-netcfg.json" ]; then
     echo -e "  -> Dispositivo Padtec configurado no netcfg."
 fi
 
-# Criar Cross-Connects nos Polatis (não persistem após reinício do hardware)
-if [ -f "tools/add_cross_rest.py" ]; then
+# Criar Cross-Connects nos Polatis e manter vivos (o OXC2 Polatis apaga após ~30s)
+# O keepalive_cross.py re-aplica os pares a cada 20s em background.
+if [ -f "tools/keepalive_cross.py" ]; then
+    nohup python3 tools/keepalive_cross.py > /tmp/keepalive_cross.log 2>&1 &
+    KEEPALIVE_PID=$!
+    echo "  -> Cross-connect keepalive iniciado (PID: $KEEPALIVE_PID). Pares: 1→13, 5→9."
+    echo "     Log: /tmp/keepalive_cross.log"
+    sleep 2  # aguarda primeira aplicação
+elif [ -f "tools/add_cross_rest.py" ]; then
     python3 tools/add_cross_rest.py > /dev/null
     echo "  -> Cross-connects criados no OXC2 (1→13 e 5→9). OXC1 fora de uso."
+    echo "  [AVISO] Sem keepalive — os pares podem desaparecer em ~30s."
 fi
 
 # Injetar links estáticos da topologia do lab (Polatis outputs <-> Pica8 SFP+)
@@ -130,13 +138,19 @@ fi
 echo "========================================="
 echo " Setup concluído com sucesso!"
 echo " "
-echo " O ONOS já registrou o dispositivo Padtec."
-echo " O PadtecDeviceProvider aguardará 10s e fará uma requisição TCP"
-echo " ao PadtecAgentServer na porta 10151 para ler o JSON gerado."
+echo " Processos ativos:"
+echo "   - Agente Padtec (TCP 10151)"
+echo "   - ONOS (http://172.17.36.231:8181/onos/ui)"
+echo "   - Cross-connect keepalive (re-aplica OXC2 a cada 20s)"
 echo " "
-echo " Acesse a interface web: http://172.17.36.231:8181/onos/ui"
+echo " Para verificar cross-connects:"
+echo "   curl -s -u admin:root http://172.17.36.22:8008/api/data/optical-switch:cross-connects"
+echo " Para verificar sinal Padtec:"
+echo "   python3 tools/coletar_padtec_onos.py"
+echo " Log keepalive: /tmp/keepalive_cross.log"
+echo " "
 echo " (Para abortar tudo, dê Ctrl+C)"
 echo "========================================="
 
-trap "kill $AGENT_PID; kill $ONOS_PID" EXIT
+trap "kill $AGENT_PID $KEEPALIVE_PID $ONOS_PID 2>/dev/null" EXIT
 wait $ONOS_PID
