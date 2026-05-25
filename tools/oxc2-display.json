@@ -2,13 +2,10 @@
   "devices": {
     "netconf:172.17.36.22:830": {
       "basic": {
-        "name": "OXC2 (Polatis 8x8)",
-        "driver": "polatis-netconf",
-        "managementAddress": "172.17.36.22"
+        "name": "OXC2 (Polatis 8x8)"
       }
     }
   },
-
   "links": {
     "padtec:172.17.36.50/1-netconf:172.17.36.22:830/1": {
       "basic": { "type": "OPTICAL", "durable": true }
