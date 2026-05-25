@@ -581,6 +581,129 @@ Body para `POST` (diferente — sem namespace):
 
 ---
 
+## Arquivos de configuração — conteúdo completo
+
+### `padtec-netcfg.json` — registra o Padtec no ONOS
+
+```json
+{
+  "devices": {
+    "padtec:172.17.36.50": {
+      "basic": {
+        "name": "Padtec-SPVL4",
+        "driver": "padtec"
+      }
+    }
+  }
+}
+```
+
+> ID do device: `padtec:172.17.36.50` (prefixo `padtec:` definido no driver).
+> Driver: `padtec` (nome registrado em `app.xml` / `driver.xml` do OAR).
+
+---
+
+### `tools/netconf-cfg1.json` — OXC1 (COM DEFEITO)
+
+```json
+{
+  "devices": {
+    "netconf:172.17.36.21:830": {
+      "netconf": {
+        "ip": "172.17.36.21", "port": 830,
+        "username": "root", "password": "root",
+        "connect-timeout": 30, "reply-timeout": 30, "idle-timeout": 300
+      },
+      "basic": { "driver": "polatis-netconf", "name": "OXC1-DEFEITO" }
+    }
+  }
+}
+```
+
+> Injetado no ONOS apenas para aparecer na topologia. Ficará UNAVAILABLE
+> pois as credenciais reais do OXC1 são desconhecidas.
+
+---
+
+### `tools/netconf-cfg2.json` — OXC2 (REFERÊNCIA — NÃO injetar no ONOS)
+
+```json
+{
+  "devices": {
+    "netconf:172.17.36.22:830": {
+      "netconf": {
+        "ip": "172.17.36.22", "port": 830,
+        "username": "admin", "password": "root",
+        "connect-timeout": 30, "reply-timeout": 30, "idle-timeout": 300
+      },
+      "basic": { "driver": "polatis-netconf" }
+    }
+  }
+}
+```
+
+> **NÃO usar** este arquivo com `setup_onos_lab.sh`. Se o ONOS conectar ao OXC2
+> via NETCONF, o driver `polatis-netconf` vai limpar os cross-connects a cada ~8 min.
+> O OXC2 é gerenciado exclusivamente pelo `keepalive_cross.py` via REST direto.
+
+---
+
+### `tools/lab-topology.json` — links estáticos da topologia
+
+Define 4 links bidirecionais (8 entradas no total) entre os dispositivos:
+
+| Link (origem → destino) | Tipo | Significado físico |
+|---|---|---|
+| `padtec/.../1 ↔ netconf:172.17.36.22:830/1` | OPTICAL | T100DCT#2 WDM ↔ OXC2 porta 1 |
+| `padtec/.../2 ↔ netconf:172.17.36.22:830/5` | OPTICAL | T100DCT#27 WDM ↔ OXC2 porta 5 |
+| `of:5e3ec454441280b9/49 ↔ padtec/.../4` | DIRECT | PAV1/porta49 ↔ T100DCT#2 cliente |
+| `of:5e3ec454443294fb/49 ↔ padtec/.../5` | DIRECT | PAV2/porta49 ↔ T100DCT#27 cliente |
+
+Links com `"allowed": false` (suprimidos):
+- Padtec porta 1 ↔ OXC1/porta 1 (OXC1 com defeito)
+- Padtec porta 2 ↔ OXC1/porta 2
+- Padtec porta 3 ↔ OXC2/porta 1 (amplificador — sem rota ativa)
+
+```bash
+# Injetar (ou reinjetar) os links:
+curl -X DELETE -u onos:rocks http://localhost:8181/onos/v1/network/configuration/links
+sleep 1
+curl -X POST -H "content-type:application/json" \
+  http://localhost:8181/onos/v1/network/configuration \
+  -d @tools/lab-topology.json -u onos:rocks
+```
+
+---
+
+### IPs e credenciais de todos os dispositivos
+
+| Dispositivo | IP | Porta | Protocolo | Usuário | Senha |
+|---|---|---|---|---|---|
+| Servidor optinet (ONOS) | 172.17.36.231 | 8181 | HTTP REST | `onos` | `rocks` |
+| Padtec supervisor | 172.17.36.50 | 8886 | PPMv3/TCP (SDK) | — | — |
+| Padtec SSH | 172.17.36.50 | 22 | SSH (RSA-1024) | `admin` | `admin`? |
+| OXC2 Polatis REST | 172.17.36.22 | 8008 | HTTP REST | `admin` | `root` |
+| OXC2 Polatis NETCONF | 172.17.36.22 | 830 | NETCONF/SSH | `admin` | `root` |
+| OXC1 Polatis (DEFEITO) | 172.17.36.21 | 830 | NETCONF/SSH | desconhecido | desconhecido |
+| PAV1 Pica8 | 172.17.36.210 | 6653 | OpenFlow | — | — |
+| PAV2 Pica8 | 172.17.36.211 | 6653 | OpenFlow | — | — |
+| DC5 | 172.17.36.208 | — | — | — | — |
+| DC6 | 172.17.36.214 | — | — | — | — |
+| Agente Padtec TCP | localhost | 10151 | TCP/JSON | — | — |
+
+---
+
+### Canais DWDM dos transponders
+
+| Transponder | Canal atual | Canal necessário | Frequência | Comprimento de onda |
+|---|---|---|---|---|
+| T100DCT-4GTT2L#2  | C28 ✅ | C28 | 193.4 THz | 1554.94 nm |
+| T100DCT-4GTT2L#27 | C24 ❌ | C28 | 193.4 THz | 1554.94 nm |
+
+> Os dois precisam estar no **mesmo canal** para que o link coerente (QPSK/DP-QPSK) faça lock.
+
+---
+
 ## Estrutura do repositório
 
 ```
