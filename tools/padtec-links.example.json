@@ -23,7 +23,7 @@
   {
     "padtecPort": 2,
     "padtecModule": "T100DCT-4GTT2L#27",
-    "channel": "C24",
+    "channel": "C28",
     "type": "OTNTransponder",
     "wdmRemoteDevice": "netconf:172.17.36.22:830",
     "wdmRemotePort": 5,
