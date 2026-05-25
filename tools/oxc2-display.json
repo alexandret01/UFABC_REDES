@@ -1,9 +1,4 @@
 {
-  "_comment": "Registra OXC2 no ONOS apenas para visualização na topologia.",
-  "_comment2": "NÃO inclui seção 'netconf' — sem credenciais, o NETCONF provider",
-  "_comment3": "não abre sessão e não interfere com os cross-connects.",
-  "_comment4": "Cross-connects são gerenciados externamente por keepalive_cross.py.",
-
   "devices": {
     "netconf:172.17.36.22:830": {
       "basic": {
