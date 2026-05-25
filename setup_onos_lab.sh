@@ -83,13 +83,18 @@ if [ -f "tools/netconf-cfg1.json" ]; then
     echo "  -> OXC1 (172.17.36.21) registrado no ONOS [COM DEFEITO — ficará offline/unreachable]."
 fi
 
-# OXC2 (172.17.36.22) — ativo, cross-connects 1↔13 e 5↔9
-if [ -f "tools/netconf-cfg2.json" ]; then
-    curl -sS -X POST -H "content-type:application/json" \
-         "http://$ONOS_IP:8181/onos/v1/network/configuration" \
-         -d @tools/netconf-cfg2.json --user "$AUTH" > /dev/null
-    echo "  -> OXC2 (172.17.36.22) registrado no ONOS."
-fi
+# OXC2 (172.17.36.22) — gerenciado APENAS via REST direto (keepalive_cross.py).
+# NÃO registrar no ONOS via NETCONF: o driver polatis-netconf limpa os
+# cross-connects a cada ~8 min durante a sync periódica.
+# Se OXC2 ainda estiver no ONOS de uma execução anterior, remove agora.
+echo "  -> OXC2: removendo do ONOS (se existir) para evitar conflito com keepalive..."
+curl -sS -X DELETE -u "$AUTH" \
+     "http://$ONOS_IP:8181/onos/v1/network/configuration/devices/netconf:172.17.36.22:830" \
+     > /dev/null 2>&1
+curl -sS -X DELETE -u "$AUTH" \
+     "http://$ONOS_IP:8181/onos/v1/devices/netconf:172.17.36.22:830" \
+     > /dev/null 2>&1
+echo "  -> OXC2 gerenciado via REST direto (keepalive). Cross-connects não serão apagados pelo ONOS."
 
 # 4. Instalar e Configurar o Driver Padtec
 echo "[4/4] Instalando e Configurando o Driver Padtec..."
@@ -141,7 +146,7 @@ echo " "
 echo " Processos ativos:"
 echo "   - Agente Padtec (TCP 10151)"
 echo "   - ONOS (http://172.17.36.231:8181/onos/ui)"
-echo "   - Cross-connect keepalive (re-aplica OXC2 a cada 20s)"
+echo "   - Cross-connect keepalive (re-aplica OXC2 a cada 60s via PUT)"
 echo " "
 echo " Para verificar cross-connects:"
 echo "   curl -s -u admin:root http://172.17.36.22:8008/api/data/optical-switch:cross-connects"

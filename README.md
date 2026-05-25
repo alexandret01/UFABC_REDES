@@ -22,7 +22,8 @@ Padtec porta 4                          Padtec porta 5
     │                                            │
     ▼                                            ▼
 Padtec porta 1                          Padtec porta 2
-(T100DCT#2 WDM, canal C28)              (T100DCT#27 WDM, canal C24)
+(T100DCT#2 WDM, canal C28)              (T100DCT#27 WDM, canal C28*)
+                                        * C28 exigido — atualmente em C24 (pendente)
     │ OPTICAL                                    │ OPTICAL
     ▼                                            ▼
 OXC2/Polatis porta 1 (ingress)          OXC2/Polatis porta 5 (ingress)
@@ -165,6 +166,14 @@ mvn clean package -DskipTests
 > **Importante:** OXC2 **não** é mais registrado via NETCONF no ONOS. Os cross-connects são
 > gerenciados exclusivamente pelo `keepalive_cross.py`. Log em `/tmp/keepalive_cross.log`.
 
+### Correção rápida (se cross-connects sumirem ou OXC2 voltou ao ONOS)
+
+```bash
+bash tools/fix_lab.sh
+```
+
+O script: remove OXC2 do ONOS → mata keepalives antigos → aplica PUT → inicia keepalive novo.
+
 ---
 
 ## Cross-connects OXC2 (gerenciamento externo)
@@ -194,6 +203,53 @@ tail -f /tmp/keepalive_cross.log
 # Descobrir em qual porta do OXC2 um transponder está conectado
 python3 tools/scan_oxc2_ports.py
 ```
+
+---
+
+## Canal C28 — Configuração do T100DCT#27 (PENDENTE)
+
+Ambos os transponders precisam estar no **canal C28 (1554.94 nm / 193.4 THz)** para que o
+link coerente faça lock. Atualmente T100DCT#2 está em C28 e T100DCT#27 está em **C24 (1551.72 nm)**.
+
+### Tentativa automática
+
+```bash
+python3 tools/set_padtec_channel.py          # testa SSH + REST + ONOS intent
+python3 tools/set_padtec_channel.py --check  # apenas mostra canal atual
+```
+
+### SSH ao supervisor Padtec
+
+O servidor SSH do Padtec usa RSA-1024 (rejeitado por OpenSSH ≥ 8.8). Para conectar:
+
+```bash
+# Método 1: script wrapper (tenta múltiplas combinações)
+bash tools/ssh_padtec.sh
+
+# Método 2: manual com sshpass
+sshpass -p admin ssh \
+  -oHostKeyAlgorithms=+ssh-rsa \
+  -oKexAlgorithms=+diffie-hellman-group14-sha1,diffie-hellman-group1-sha1 \
+  -oCiphers=+aes128-cbc,3des-cbc \
+  -oPubkeyAuthentication=no \
+  admin@172.17.36.50
+
+# Método 3: cliente SSH legado (se disponível)
+ssh -oHostKeyAlgorithms=+ssh-rsa admin@172.17.36.50
+```
+
+Após conectar, os prováveis comandos CLI do supervisor Padtec:
+
+```
+show channel               # verificar canal atual
+set channel C28            # ou: configure channel 28
+set wavelength 1554.94     # alternativa por comprimento de onda
+```
+
+### Alternativa: acesso físico
+
+Se SSH continuar bloqueado, configure o canal diretamente no **painel LCD do T100DCT#27**
+ou via cabo console RS-232 (se disponível no equipamento).
 
 ---
 
@@ -482,10 +538,12 @@ Acesse: `http://172.17.36.231:8181/onos/ui` (usuário: `onos`, senha: `rocks`)
 
 | Item | Status |
 |---|---|
+| **Canal T100DCT#27** | **⚠ CRÍTICO** — está em C24 (1551.72 nm), precisa ser C28 (1554.94 nm) para lock coerente com T100DCT#2 |
 | OXC1 (172.17.36.21) com defeito | Credenciais NETCONF desconhecidas — HTTP 401 em todas as tentativas |
 | OXC2 fora do ONOS | Driver `polatis-netconf` limpa cross-connects periodicamente; OXC2 gerenciado via REST externo |
-| LOF nos transponders | Loss of Frame OTN — sinal óptico presente mas framing pendente; esperado sem tráfego cliente |
+| LOF nos transponders | Loss of Frame OTN — sinal óptico presente mas framing pendente; esperado enquanto os canais não fizerem lock coerente |
 | T100DCT#2 sinal fraco | Rx ~-28 dBm no trecho OXC2/porta9→T100DCT#2 RX (atenuação ~34 dB); verificar conector |
+| SSH ao supervisor Padtec | `ssh admin@172.17.36.50` falha com "Invalid key length" — servidor usa RSA-1024 rejeitado por OpenSSH ≥ 8.8. Ver `tools/ssh_padtec.sh` |
 | Rota L3 DC5↔DC6 | Subnets 10.0.0.0/24 e 10.0.1.0/24 — requer `ip route add` nos servidores DC5/DC6 |
 | FEC desabilitado | `fecRxEnabled=false` e `fecTxEnabled=false` nos transponders |
 
@@ -547,10 +605,13 @@ tools/
 ├── keepalive_cross.py              # Loop: re-aplica cross-connects a cada 60s
 ├── scan_oxc2_ports.py              # Descobre qual porta do OXC2 está ligada a cada transponder
 ├── fix_cross_persist.py            # Diagnóstico: testa POST vs PUT vs commit RESTCONF
+├── fix_lab.sh                      # Correção completa do lab: remove OXC2 ONOS + reinicia keepalive
 ├── status_lab.py                   # Snapshot: cross-connects + sinal Padtec + alarmes
+├── set_padtec_channel.py           # Tenta configurar canal C28 no Padtec (SSH/REST/ONOS)
+├── ssh_padtec.sh                   # SSH ao supervisor Padtec com flags de compatibilidade RSA-1024
 ├── coletar_padtec_onos.py          # Coleta completa via ONOS REST (CSV/JSON/alarmes)
 ├── netconf-cfg1.json               # OXC1 (172.17.36.21) — COM DEFEITO
-├── netconf-cfg2.json               # OXC2 (172.17.36.22) — referência (não usar no ONOS)
+├── netconf-cfg2.json               # OXC2 (172.17.36.22) — referência (NÃO registrar no ONOS)
 └── start_agent.sh                  # Inicia agente TCP manualmente
 
 setup_onos_lab.sh                   # Setup completo do lab (ONOS + agente + keepalive + links)
