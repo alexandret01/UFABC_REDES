@@ -236,7 +236,38 @@ public class PadtecDeviceDescription extends AbstractHandlerBehaviour
                             .build());
                 }
             }
-            log.info("Descoberta com sucesso! {} portas identificadas (FIBER/OCH).", ports.size());
+            // Segunda passagem: portas CLIENTE (lado LR/Ethernet) dos OTNTransponders.
+            // Cada OTNTransponder tem uma porta WDM (OCH, já criada acima) e uma porta
+            // cliente (COPPER 10G) que conecta ao switch Pica8 via fibra LR.
+            // Ordem: T100DCT#2 (porta 4) → PAV1/49  |  T100DCT#27 (porta 5) → PAV2/49
+            for (JsonNode node : devicesNode) {
+                String type    = node.path("type").asText();
+                String name    = node.path("name").asText();
+                JsonNode metrics = node.path("metrics");
+
+                if ("OTNTransponder".equals(type)) {
+                    DefaultAnnotations.Builder clientAnn = DefaultAnnotations.builder()
+                            .set("neName", name)
+                            .set("type", type)
+                            .set("side", "client");
+                    setIfPresent(clientAnn, metrics, "inputPowerClient");
+                    setIfPresent(clientAnn, metrics, "outputPowerClient");
+                    setIfPresent(clientAnn, metrics, "clientLambda");
+                    setIfPresent(clientAnn, metrics, "isClientLOS");
+                    setIfPresent(clientAnn, metrics, "isClientLOF");
+                    setIfPresent(clientAnn, metrics, "isClientOff");
+
+                    ports.add(DefaultPortDescription.builder()
+                            .withPortNumber(PortNumber.portNumber(portCounter++))
+                            .isEnabled(true)
+                            .type(Port.Type.COPPER)
+                            .portSpeed(10000L)   // 10G LR
+                            .annotations(clientAnn.build())
+                            .build());
+                }
+            }
+
+            log.info("Descoberta com sucesso! {} portas identificadas (WDM + cliente).", ports.size());
 
         } catch (Exception e) {
             log.error("Erro na comunicação TCP com o Agente Padtec (porta {}): ", AGENT_PORT, e);

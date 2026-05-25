@@ -1,62 +1,137 @@
 # Driver ONOS — Equipamentos Padtec SPVL4 (UFABC)
 
-Driver ONOS para integração nativa com equipamentos ópticos Padtec (placa SPVL4, Transponders OTN, Amplificadores) no laboratório de redes ópticas da UFABC.
+Driver ONOS para integração nativa com equipamentos ópticos Padtec (placa SPVL4, Transponders OTN, Amplificadores) no laboratório OPTINET multi-camada da UFABC.
 
 ---
 
-## Arquitetura
+## Topologia do Laboratório
+
+```
+DC5 (172.17.36.208)                             DC6 (172.17.36.214)
+10.0.0.2/24                                     10.0.1.2/24
+    │ enp1s0                                         │ enp1s0
+    ▼                                                ▼
+PAV1 - Pica8 P3295                          PAV2 - Pica8 P3295
+172.17.36.210                               172.17.36.211
+of:5e3ec454441280b9                         of:5e3ec454443294fb
+    │ porta 49 (SFP+ 10G)                       │ porta 49 (SFP+ 10G)
+    │ DIRECT                                     │ DIRECT
+    ▼                                            ▼
+Padtec porta 4                          Padtec porta 5
+(T100DCT#2 cliente 10G LR)              (T100DCT#27 cliente 10G LR)
+    │                                            │
+    ▼                                            ▼
+Padtec porta 1                          Padtec porta 2
+(T100DCT#2 WDM, canal C28)              (T100DCT#27 WDM, canal C24)
+    │ OPTICAL                                    │ OPTICAL
+    ▼                                            ▼
+OXC2/Polatis porta 1 (ingress)          OXC2/Polatis porta 5 (ingress)
+    │                                            │
+    └──── cross-connect 1→13 ────────────────────┘ (TX do #2 → RX do #27)
+    └──── cross-connect 5→9  ────────────────────┘ (TX do #27 → RX do #2)
+    │                                            │
+OXC2/Polatis porta 13 (egress)          OXC2/Polatis porta 9 (egress)
+    │                                            │
+    └──────── RX do T100DCT#27 ◄────────────────┘
+    └──────── RX do T100DCT#2  ◄────────────────┘
+
+Supervisor Padtec : 172.17.36.50:8886
+OXC2 (Polatis)    : 172.17.36.22:830 (NETCONF) / 172.17.36.22:8008 (REST)
+OXC1 (Polatis)    : 172.17.36.21 — COM DEFEITO (credenciais NETCONF desconhecidas)
+```
+
+### Fluxo de dados completo
+```
+DC5 → PAV1 → Padtec T100DCT#2 (cliente) → Padtec T100DCT#2 (WDM)
+    → OXC2 (cross-connect 1→13 e 5→9)
+    → Padtec T100DCT#27 (WDM) → Padtec T100DCT#27 (cliente) → PAV2 → DC6
+```
+
+---
+
+## Dispositivos no ONOS (3 gerenciados + OXC2 externo)
+
+| Device ID | Tipo | Status | IP |
+|---|---|---|---|
+| `padtec:172.17.36.50` | Padtec SPVL4 | AVAILABLE | 172.17.36.50 |
+| `of:5e3ec454441280b9` | Pica8 PAV1 | AVAILABLE | 172.17.36.210 |
+| `of:5e3ec454443294fb` | Pica8 PAV2 | AVAILABLE | 172.17.36.211 |
+
+> **OXC2 (172.17.36.22)**: gerenciado **diretamente via REST** pelo `keepalive_cross.py`,
+> **fora do ONOS** para evitar que o driver `polatis-netconf` limpe os cross-connects durante
+> sync periódico. Topologia usa links estáticos (`lab-topology.json`) para representar as
+> conexões Padtec↔OXC2 no mapa do ONOS.
+
+> **OXC1 (172.17.36.21)**: equipamento com defeito. Responde ping mas NETCONF falha com
+> autenticação — credenciais desconhecidas. Não aparece no ONOS.
+
+---
+
+## Portas do Padtec (5 portas)
+
+| Porta | Tipo | Equipamento | Função |
+|---|---|---|---|
+| 1 | OCH (WDM) | T100DCT-4GTT2L#2  | Enlace WDM → OXC2/porta 1 (ingress) |
+| 2 | OCH (WDM) | T100DCT-4GTT2L#27 | Enlace WDM → OXC2/porta 5 (ingress) |
+| 3 | OCH (WDM) | T25DC26-4BRE4L#10 | Amplificador (sem link ativo) |
+| 4 | COPPER 10G | T100DCT-4GTT2L#2  | Cliente LR → PAV1/porta 49 |
+| 5 | COPPER 10G | T100DCT-4GTT2L#27 | Cliente LR → PAV2/porta 49 |
+
+---
+
+## Links no ONOS (4 bidirecionais)
+
+| Link | Tipo |
+|---|---|
+| `padtec:172.17.36.50/1 ↔ netconf:172.17.36.22:830/1` | OPTICAL |
+| `padtec:172.17.36.50/2 ↔ netconf:172.17.36.22:830/5` | OPTICAL |
+| `padtec:172.17.36.50/4 ↔ of:5e3ec454441280b9/49` | DIRECT |
+| `padtec:172.17.36.50/5 ↔ of:5e3ec454443294fb/49` | DIRECT |
+
+Links definidos em `tools/lab-topology.json`. Links espúrios (OXC1, amplificador) bloqueados com `"allowed": false`.
+
+---
+
+## Arquitetura do Driver
 
 ```
 ┌────────────────────────────────────────────────────────────────────┐
 │                        ONOS (Java 11)                              │
 │                                                                    │
-│  PadtecManager        PadtecDeviceProvider   PadtecLinkProvider   │
-│  (OSGi Component)     (OSGi Component)       (OSGi Component)     │
-│       │                     │                      │              │
-│       │ ProcessBuilder      │ Timer 45s            │ Timer 60s    │
-│       ▼                     ▼                      ▼              │
-│  [Java 18 process]    injectDevice()         injectLinks()        │
-│  PadtecMonitorJSON3   updatePorts()          (lê /home/sdn/       │
-│  + PadtecAgentServer  updatePortStats()       padtec-links.json)  │
-│       │  TCP :10151         │ TCP :10151           │              │
-│       └─────────────────────┘                      │              │
-│                                                     ▼              │
-│  Behaviours do driver (padtec-drivers.xml):    ONOS Topology      │
-│    PadtecDeviceDescription  → portas + anotações  (links ópticos  │
-│    PadtecPowerConfig        → potência real        Padtec↔Polatis)│
-│    PadtecAlarmConsumer      → 6 tipos de alarme                   │
-│    PadtecLambdaQuery        → OchSignal por canal DWDM            │
-│    PadtecPortAdmin          → isEnabled real                      │
+│  PadtecDeviceProvider        PadtecDeviceDescription               │
+│  (OSGi, polling ~20s)        (driver behaviour)                    │
+│       │ TCP :10151                 │ TCP :10151                    │
+│       └──────────────┬────────────┘                               │
+│                      ▼                                             │
+│               PadtecAgentServer                                    │
+│               (TCP :10151 — serve JSON)                            │
+│                      │                                             │
+│               PadtecMonitorJSON3                                   │
+│               (Java 18 — coleta contínua)                         │
+│                      │ SDK nativo Padtec                           │
+│                      ▼                                             │
+│               Supervisor 172.17.36.50:8886                         │
 └────────────────────────────────────────────────────────────────────┘
-         │ SNMP/proprietário
-         ▼
-   Supervisor Padtec
-   172.17.36.50:8886
+
+keepalive_cross.py (processo independente, loop a cada 60s)
+    └── PUT http://172.17.36.22:8008/api/data/optical-switch:cross-connects
+           └── cross-connects 1→13 e 5→9 (persistentes via PUT)
 ```
 
-**Fluxo completo:**
-1. ONOS ativa → `PadtecManager` detecta se porta 10151 está livre
-2. Se livre, lança `PadtecMonitorJSON3` via `ProcessBuilder` (Java 18, `/home/sdn/TailEndController`)
-3. O monitor conecta ao hardware real (`172.17.36.50`) e inicia `PadtecAgentServer` na porta TCP 10151
-4. O monitor coleta todas as métricas e entra em **loop contínuo a cada 60s**
-5. Após 45s, `PadtecDeviceProvider` lê o JSON e registra device + portas no ONOS
-6. A cada 60s: portas são **re-lidas** (atualiza potência/isLOS/canais) e estatísticas são atualizadas
-7. Após 60s, `PadtecLinkProvider` injeta links ópticos Padtec↔Polatis (requer `padtec-links.json`)
-8. `PadtecAlarmConsumer` gera alarmes para cada porta com falha detectada (LOS, LOF, BDI, FEC alto, etc.)
-9. `PadtecPowerConfig` expõe potência real (dBm) para o plano de controle óptico do ONOS
+**Por que bridge TCP?** A lib Padtec exige Java 18 + JNI (`.so` nativos), incompatível com o OSGi do ONOS (Java 11). O `PadtecMonitorJSON3` roda como processo Java 18 separado e expõe os dados via socket TCP.
 
-**Não é necessário rodar `monitor.sh` manualmente.**
+**Por que keepalive externo?** O driver `polatis-netconf` do ONOS faz sync periódico com o OXC2 e apaga os cross-connects a cada ~8 minutos. A solução é remover OXC2 do ONOS e manter os cross-connects via `keepalive_cross.py` usando `PUT` (que persiste no datastore running do Polatis).
 
 ---
 
 ## Pré-requisitos
 
 | Componente | Versão | Localização |
-|------------|--------|-------------|
-| ONOS | 2.7.0 / 3.0.0-SNAPSHOT | `/tmp/onos-3.0.0-SNAPSHOT` |
-| Java (ONOS) | 11 | `/tmp/onos-3.0.0-SNAPSHOT-jdk` |
+|---|---|---|
+| ONOS | 3.0.0-SNAPSHOT | `/home/sdn/onos27/onos` |
+| Java (ONOS) | 11 | sistema |
 | Java (Monitor) | 18 | `/usr/lib/jvm/jdk-18.0.2.1` |
-| TailEndController | — | `/home/sdn/TailEndController` |
+| TailEndController | — | `Outros/TailEndController/` |
 | Hardware Padtec | SPVL4 | `172.17.36.50:8886` |
 
 ---
@@ -74,22 +149,74 @@ mvn clean package -DskipTests
 ## Como subir o laboratório
 
 ```bash
-# Inicia ONOS + Polatis + Padtec + cross-connects
-sudo ./setup_onos_lab.sh
+./setup_onos_lab.sh
 ```
 
 **O script automatiza:**
-1. Inicia o ONOS (Karaf/Bazel)
-2. Aguarda a API REST estabilizar
-3. Ativa apps necessárias (incl. `faultmanagement` para alarmes e `optical-model`)
-4. Configura os switches Polatis via NETCONF
+1. Compila e inicia o agente Padtec (Java 18, TCP :10151)
+2. Inicia o ONOS (Bazel, limpo)
+3. Ativa apps necessárias (openflow, fwd, proxyarp, netconf, optical-model, faultmanagement, netcfglinksprovider, etc.)
+4. Registra OXC1 via NETCONF (`tools/netconf-cfg1.json`) — ficará UNAVAILABLE por defeito
 5. Instala o driver Padtec (`.oar`)
-6. Injeta a topologia (`padtec-netcfg.json`)
-7. Cria cross-connects nos Polatis (`add_cross_rest.py`)
+6. Injeta configuração do device Padtec (`padtec-netcfg.json`)
+7. Inicia `keepalive_cross.py` em background (aplica cross-connects OXC2 via PUT a cada 60s)
+8. Injeta links estáticos da topologia (`tools/lab-topology.json`)
 
-Após ~45s do ONOS subir, o equipamento Padtec aparece automaticamente com as portas reais.
+> **Importante:** OXC2 **não** é mais registrado via NETCONF no ONOS. Os cross-connects são
+> gerenciados exclusivamente pelo `keepalive_cross.py`. Log em `/tmp/keepalive_cross.log`.
 
-> **Nota:** Os cross-connects dos Polatis não persistem após reinício do hardware. O `setup_onos_lab.sh` os recria automaticamente a cada execução.
+---
+
+## Cross-connects OXC2 (gerenciamento externo)
+
+O Polatis OXC2 tem dois datastores: **candidate** (temporário) e **running** (persistente).
+- `POST` → candidate → **expirado em ~5 segundos** ❌
+- `PUT`  → running  → **persiste indefinidamente** ✅
+
+O driver NETCONF do ONOS, quando conectado ao OXC2, limpa o running periodicamente (~8 min).
+Por isso o OXC2 é gerenciado fora do ONOS.
+
+```bash
+# Ver cross-connects ativos
+curl -s -u admin:root \
+  "http://172.17.36.22:8008/api/data/optical-switch:cross-connects" \
+  -H "Accept: application/yang-data+json" | python3 -m json.tool
+
+# Reaplicar manualmente (após reinício do Polatis)
+python3 tools/add_cross_rest.py
+
+# Iniciar keepalive em background
+nohup python3 tools/keepalive_cross.py > /tmp/keepalive_cross.log 2>&1 &
+
+# Ver log do keepalive
+tail -f /tmp/keepalive_cross.log
+
+# Descobrir em qual porta do OXC2 um transponder está conectado
+python3 tools/scan_oxc2_ports.py
+```
+
+---
+
+## Estado do sinal óptico (verificado)
+
+```bash
+# Snapshot rápido: cross-connects + potência Padtec + alarmes
+python3 tools/status_lab.py
+
+# Watch contínuo (atualiza a cada 15s)
+python3 tools/status_lab.py --watch
+```
+
+**Valores esperados com o caminho óptico estabelecido:**
+
+| Porta | Equipamento | WDM Rx | isLOS |
+|---|---|---|---|
+| 1 | T100DCT#2  | ~-28 a -29 dBm | false |
+| 2 | T100DCT#27 | ~-9 dBm        | false |
+
+> **Nota:** A potência recebida na T100DCT#2 (-28 dBm) é baixa mas acima do threshold de LOS.
+> A assimetria (34 dB de perda vs ~14 dB no outro sentido) sugere conector sujo ou cabo com
+> maior atenuação no trecho OXC2/porta9 → T100DCT#2 RX.
 
 ---
 
@@ -103,199 +230,240 @@ mvn clean package -DskipTests
 curl -u onos:rocks -X DELETE \
   http://localhost:8181/onos/v1/applications/org.onosproject.drivers.padtec
 
-sleep 3
+sleep 2
 
 # 3. Instalar nova versão
 curl -u onos:rocks -X POST \
   -H "Content-Type: application/octet-stream" \
   "http://localhost:8181/onos/v1/applications?activate=true" \
   --data-binary @target/onos-drivers-padtec-2.7.0.oar
+
+# 4. Reinjetar links (força CONFIG_ADDED)
+curl -X DELETE -u onos:rocks http://localhost:8181/onos/v1/network/configuration/links
+sleep 1
+curl -X POST -H "content-type:application/json" \
+  http://localhost:8181/onos/v1/network/configuration \
+  -d @tools/lab-topology.json -u onos:rocks
 ```
 
 ---
 
-## Topologia verificada do laboratório
+## Extrair dados de monitoramento
 
-```
-Padtec (172.17.36.50)          Polatis-1 (172.17.36.21)
-  porta 1 (T100DCT#2,  C28) ──▶ porta 1 (INPUT) ──[cross 1→10]──▶ porta 10 (OUTPUT)
-  porta 2 (T100DCT#27, C24) ──▶ porta 2 (INPUT) ──[cross 2→9] ──▶ porta  9 (OUTPUT)
-
-Padtec (172.17.36.50)          Polatis-2 (172.17.36.22)
-  porta 3 (T25DC26,  Trsp.) ──▶ porta 1 (INPUT) ──[cross 1→10]──▶ porta 10 (OUTPUT)
-```
-
-Para recalibrar os cross-connects após reinício dos Polatis:
+### Snapshot completo (recomendado)
 ```bash
-python3 tools/add_cross_rest.py
-```
-
----
-
-## Configurar links ópticos Padtec ↔ Polatis
-
-O arquivo de topologia já está preenchido com os valores reais em `tools/padtec-links.example.json`.
-Copie-o para `/home/sdn/padtec-links.json`:
-
-```bash
-cp tools/padtec-links.example.json /home/sdn/padtec-links.json
-```
-
-O `PadtecLinkProvider` lê este arquivo 60s após o ONOS subir e injeta os links automaticamente.
-
----
-
-## Extrair dados de monitoramento para análise
-
-O script `tools/coletar_padtec_onos.py` coleta todos os dados via ONOS REST API:
-
-```bash
-pip3 install requests
-
-# Resumo legível no terminal (snapshot único)
 python3 tools/coletar_padtec_onos.py
-
-# Loop contínuo salvando CSV (para análise histórica)
-python3 tools/coletar_padtec_onos.py --loop --intervalo 60 --csv /home/sdn/padtec_historico.csv
-
-# Só alarmes ativos
+# Com CSV:
+python3 tools/coletar_padtec_onos.py --loop --intervalo 60 --csv /tmp/padtec.csv
+# Só alarmes:
 python3 tools/coletar_padtec_onos.py --alarmes
-
-# JSON completo (para integração com outros sistemas)
-python3 tools/coletar_padtec_onos.py --json > /tmp/snapshot.json
+# JSON bruto:
+python3 tools/coletar_padtec_onos.py --json
 ```
 
-O CSV gerado contém uma linha por porta a cada ciclo com todos os campos de monitoramento.
+### Potência óptica e alarmes por porta
+```bash
+curl -sS -u onos:rocks \
+  http://localhost:8181/onos/v1/devices/padtec:172.17.36.50/ports \
+  | python3 -c "
+import json, sys
+for p in json.load(sys.stdin)['ports']:
+    ann = p['annotations']
+    print(f\"=== Porta {p['port']} — {ann.get('neName','?')} ===\")
+    for k,v in sorted(ann.items()):
+        print(f'  {k:22} = {v}')
+    print()
+"
+```
+
+### Resumo rápido (sinal + alarme)
+```bash
+curl -sS -u onos:rocks \
+  http://localhost:8181/onos/v1/devices/padtec:172.17.36.50/ports \
+  | python3 -c "
+import json, sys
+for p in json.load(sys.stdin)['ports'][:3]:
+    ann = p['annotations']
+    rx  = ann.get('inputPowerWDM', ann.get('powerInput', 'N/A'))
+    tx  = ann.get('outputPowerWDM', ann.get('powerOutput', 'N/A'))
+    los = ann.get('isLOS','?')
+    bdi = ann.get('isBDI','?')
+    print(f\"Porta {p['port']} {ann.get('neName','?'):25} isLOS={los} isBDI={bdi} | RX={rx} dBm | TX={tx} dBm\")
+"
+```
+
+### Estatísticas de porta (potência como long)
+```bash
+curl -sS -u onos:rocks \
+  http://localhost:8181/onos/v1/statistics/ports/padtec:172.17.36.50 \
+  | python3 -c "
+import json, sys
+for s in json.load(sys.stdin).get('statistics', []):
+    for p in s.get('ports', []):
+        rx  = p.get('packetsReceived', 0) / 1000
+        tx  = p.get('packetsSent', 0) / 1000
+        err = p.get('packetsRxErrors', 0)
+        print(f\"Porta {p['port']:2} | RX: {rx:+.1f} dBm | TX: {tx:+.1f} dBm | FEC erros: {err}\")
+"
+```
+
+### Alarmes ativos
+```bash
+curl -sS -u onos:rocks http://localhost:8181/onos/v1/alarms \
+  | python3 -c "
+import json, sys
+alarms = json.load(sys.stdin).get('alarms', [])
+print(f'Total: {len(alarms)} alarme(s)')
+for a in alarms:
+    print(f\"  [{a['severity']}] {a['description']}\")
+"
+```
+
+### Links ativos
+```bash
+curl -sS -u onos:rocks http://localhost:8181/onos/v1/links | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+for l in data['links']:
+    src = l['src']['device'] + '/' + str(l['src']['port'])
+    dst = l['dst']['device'] + '/' + str(l['dst']['port'])
+    print(f\"{l['type']:8} | {src} -> {dst}\")
+print(f'Total: {len(data[\"links\"])} links')
+"
+```
+
+### JSON bruto do agente TCP
+```bash
+python3 -c "
+import socket, json
+s = socket.socket(); s.connect(('127.0.0.1', 10151))
+data = b''
+while True:
+    chunk = s.recv(4096)
+    if not chunk: break
+    data += chunk
+s.close()
+obj = json.loads(data.decode())
+devices = obj if isinstance(obj, list) else obj.get('devices', [])
+for d in devices:
+    print(f\"{d['name']:30} type={d['type']:15}\", end=' ')
+    m = d.get('metrics', {})
+    for k in ['inputPowerWDM','outputPowerWDM','inputPower','outputPower','isLOS','channel','gain']:
+        if k in m: print(f'{k}={m[k]}', end=' ')
+    print()
+"
+```
 
 ---
 
-## Verificação
+## Verificação rápida do estado do lab
 
 ```bash
-# Device e anotações (lastCollected, supervisor)
-curl -s -u onos:rocks \
-  http://localhost:8181/onos/v1/devices/padtec:172.17.36.50 | python3 -m json.tool
+# Status completo (cross-connects + sinal + alarmes)
+python3 tools/status_lab.py
 
-# Portas com canal, inputPower, outputPower, isLOS (atualiza a cada 60s)
-curl -s -u onos:rocks \
-  http://localhost:8181/onos/v1/devices/padtec:172.17.36.50/ports | python3 -m json.tool
+# Devices no ONOS
+curl -sS -u onos:rocks http://localhost:8181/onos/v1/devices | python3 -c "
+import json,sys
+for d in json.load(sys.stdin)['devices']:
+    print(f\"{'AVAIL' if d['available'] else 'UNAVAIL':8} | {d['id']}\")
+"
 
-# Estatísticas de porta (potência × 1000 como contadores; fecErrors em packetsRxErrors)
-curl -s -u onos:rocks \
-  http://localhost:8181/onos/v1/statistics/ports/padtec:172.17.36.50 | python3 -m json.tool
+# Links (esperado: 8 entradas = 4 bidirecionais)
+curl -sS -u onos:rocks http://localhost:8181/onos/v1/links | python3 -c "
+import json,sys; d=json.load(sys.stdin)
+print(f'{len(d[\"links\"])} links')
+for l in d['links']:
+    print(f\"  {l['type']:8} {l['src']['device'].split(':')[-1]}/{l['src']['port']} -> {l['dst']['device'].split(':')[-1]}/{l['dst']['port']}\")
+"
 
-# Alarmes ativos
-# NOTA: ONOS 3.0.0-SNAPSHOT — bug de packaging registra faultmanagement no contexto "onos/dhcp"
-curl -s -u onos:rocks \
-  "http://localhost:8181/onos/dhcp/alarms?devId=padtec:172.17.36.50" | python3 -m json.tool
+# Cross-connects OXC2
+curl -s -u admin:root \
+  "http://172.17.36.22:8008/api/data/optical-switch:cross-connects" \
+  -H "Accept: application/yang-data+json" | python3 -m json.tool
 
-# Links ópticos injetados
-curl -s -u onos:rocks \
-  "http://localhost:8181/onos/v1/links?device=padtec:172.17.36.50" | python3 -m json.tool
-
-# Log do monitor Java 18
-tail -f /tmp/padtec_monitor.log
+# Alarmes
+curl -sS -u onos:rocks http://localhost:8181/onos/v1/alarms | python3 -c "
+import json,sys; d=json.load(sys.stdin)
+print(f'{len(d.get(\"alarms\",[]))} alarme(s)')
+for a in d.get('alarms',[]): print(f'  [{a[\"severity\"]}] {a[\"description\"][:70]}')
+"
 ```
 
 ---
 
 ## Dados expostos no ONOS
 
-### Device (`padtec:172.17.36.50`)
-| Anotação | Exemplo |
-|----------|---------|
-| `lastCollected` | `2026-05-03_10-32-39` (atualiza a cada 60s) |
-| `supervisor` | `172.17.36.50:8886` |
-
 ### Portas OCH — OTNTransponder (T100DCT-*)
 
 #### Interface WDM
 | Anotação | Descrição |
-|----------|-----------|
+|---|---|
 | `neName` | Nome do equipamento (ex: `T100DCT-4GTT2L#2`) |
 | `channel` | Canal DWDM (ex: `C28`, `C24`) |
 | `lambda` | Comprimento de onda em nm |
-| `inputPowerWDM` | Potência de entrada WDM em dBm (ou `N/A`) |
-| `outputPowerWDM` | Potência de saída WDM em dBm (ou `N/A`) |
-| `isLOS` | `true` se sem sinal óptico |
+| `inputPowerWDM` | Potência RX WDM em dBm (ou `N/A`) |
+| `outputPowerWDM` | Potência TX WDM em dBm |
+| `isLOS` | `true` se sem sinal WDM |
 | `isLOF` | `true` se frame OTN perdido |
 | `isOff` | `true` se transmissor desligado |
 
-#### ODU-k (qualidade do sinal)
+#### ODU-k
 | Anotação | Descrição |
-|----------|-----------|
+|---|---|
 | `bip8Rate` | Taxa de erro BIP-8 |
 | `beiRate` | Taxa de erro BEI |
-| `isBDI` | `true` se far-end reportou defeito (Backward Defect Indicator) |
+| `isBDI` | `true` se far-end reportou defeito |
 
 #### FEC
 | Anotação | Descrição |
-|----------|-----------|
-| `fecName` | Nome do algoritmo FEC (ex: `Reed-Solomon`) |
-| `fecErrors` | Contador de erros FEC corrigidos (também em `packetsRxErrors`) |
-| `fecRate` | Taxa de erro FEC (BER pós-FEC) |
-| `fecRxEnabled` | `true` se FEC de recepção habilitado |
-| `fecTxEnabled` | `true` se FEC de transmissão habilitado |
+|---|---|
+| `fecName` | Algoritmo FEC (ex: `Reed-Solomon`) |
+| `fecErrors` | Contador de erros FEC corrigidos |
+| `fecRate` | BER pós-FEC |
+| `fecRxEnabled` | FEC de recepção habilitado |
+| `fecTxEnabled` | FEC de transmissão habilitado |
 
-#### Interface Cliente
+#### Interface Cliente (porta COPPER)
 | Anotação | Descrição |
-|----------|-----------|
-| `inputPowerClient` | Potência de entrada do lado cliente em dBm |
-| `outputPowerClient` | Potência de saída do lado cliente em dBm |
-| `clientLambda` | Comprimento de onda da interface cliente em nm |
+|---|---|
+| `inputPowerClient` | Potência RX cliente em dBm |
+| `outputPowerClient` | Potência TX cliente em dBm |
 | `isClientLOS` | `true` se sem sinal na porta cliente |
 | `isClientLOF` | `true` se frame perdido na porta cliente |
-| `isClientOff` | `true` se interface cliente desligada |
+| `side` | `"client"` (identifica porta cliente) |
 
 ### Portas OCH — Transponder genérico (T25DC*)
 | Anotação | Descrição |
-|----------|-----------|
-| `neName` | Nome do equipamento |
-| `channel` | Canal DWDM |
-| `lambda` | Comprimento de onda em nm |
-| `inputPower` | Potência de entrada em dBm (ou `N/A`) |
-| `outputPower` | Potência de saída em dBm (ou `N/A`) |
-| `isLOS` | `true` se sem sinal óptico |
+|---|---|
+| `inputPower` | Potência RX em dBm |
+| `outputPower` | Potência TX em dBm |
+| `isLOS` | `true` se sem sinal |
 
 ### Portas FIBER — Amplifier
 | Anotação | Descrição |
-|----------|-----------|
-| `neName` | Nome do equipamento |
-| `gain` | Ganho do amplificador em dB |
-| `powerInput` | Potência de entrada em dBm (ou `N/A`) |
-| `powerOutput` | Potência de saída em dBm (ou `N/A`) |
-| `isLOS` | `true` se sem sinal óptico |
-| `isAGC` | `true` se modo AGC (Automatic Gain Control) |
+|---|---|
+| `gain` | Ganho em dB |
+| `powerInput` | Potência de entrada em dBm |
+| `powerOutput` | Potência de saída em dBm |
+| `isAGC` | Modo Automatic Gain Control |
 
-### Estatísticas de porta (`/onos/v1/statistics/ports/...`)
+### Estatísticas de porta
 | Campo ONOS | Dado real |
-|------------|-----------|
-| `packetsReceived` | inputPower × 1000 (dBm preservado como long) |
+|---|---|
+| `packetsReceived` | inputPower × 1000 (dBm como long) |
 | `packetsSent` | outputPower × 1000 |
-| `packetsRxErrors` | fecErrors (contador real de erros FEC — só OTNTransponder) |
+| `packetsRxErrors` | fecErrors (só OTNTransponder) |
 
-### Alarmes
-Gerados automaticamente por `PadtecAlarmConsumer` com base nas anotações de porta:
-
-| Condição | Severidade | Campo |
-|----------|-----------|-------|
-| Sem sinal óptico | **CRITICAL** | `isLOS=true` |
-| Loss of Frame OTN | **MAJOR** | `isLOF=true` |
-| Backward Defect Indicator | **MAJOR** | `isBDI=true` |
-| Sem sinal na porta cliente | **MAJOR** | `isClientLOS=true` |
-| Loss of Frame na porta cliente | **MINOR** | `isClientLOF=true` |
-| Taxa de erro FEC alta (>1e-4) | **WARNING** | `fecRate` |
-
-Visíveis em:
-```bash
-# ONOS 3.0.0-SNAPSHOT: endpoint registrado em "onos/dhcp" por bug de packaging Karaf
-curl -s -u onos:rocks "http://localhost:8181/onos/dhcp/alarms?devId=padtec:172.17.36.50"
-```
-
-### PowerConfig (API óptica do ONOS)
-Disponível para o plano de controle óptico via `PowerConfig`:
-- `currentPower()` → `gain` (Amplifier) ou `outputPower`/`outputPowerWDM` (Transponder)
-- `currentInputPower()` → `powerInput` (Amplifier) ou `inputPower`/`inputPowerWDM` (Transponder)
+### Alarmes (gerados por `PadtecAlarmConsumer`)
+| Condição | Severidade |
+|---|---|
+| `isLOS=true` | **CRITICAL** |
+| `isLOF=true` | **MAJOR** |
+| `isBDI=true` | **MAJOR** |
+| `isClientLOS=true` | **MAJOR** |
+| `isClientLOF=true` | **MINOR** |
+| `fecRate > 1e-4` | **WARNING** |
 
 ---
 
@@ -303,10 +471,55 @@ Disponível para o plano de controle óptico via `PowerConfig`:
 
 Acesse: `http://172.17.36.231:8181/onos/ui` (usuário: `onos`, senha: `rocks`)
 
-- **Devices** → `Padtec-SPVL4` aparece com portas ativas
-- **Ports** → lista transponders com canal, status e potência em tempo real (refresh 60s)
-- **Alarms** → alarmes LOS/LOF/BDI/FEC críticos quando um equipamento falha
-- **Topology** → links ópticos Padtec↔Polatis (6 links bidirecionais ACTIVE)
+- **Devices** → 3 devices online (Padtec, PAV1, PAV2) + OXC2 representado via links estáticos
+- **Ports** → 5 portas Padtec com canal, potência e status em tempo real
+- **Links** → 4 links bidirecionais (2 OPTICAL + 2 DIRECT)
+- **Alarms** → alarmes LOS/LOF/BDI/FEC quando há falha óptica
+
+---
+
+## Problemas conhecidos / Pendências
+
+| Item | Status |
+|---|---|
+| OXC1 (172.17.36.21) com defeito | Credenciais NETCONF desconhecidas — HTTP 401 em todas as tentativas |
+| OXC2 fora do ONOS | Driver `polatis-netconf` limpa cross-connects periodicamente; OXC2 gerenciado via REST externo |
+| LOF nos transponders | Loss of Frame OTN — sinal óptico presente mas framing pendente; esperado sem tráfego cliente |
+| T100DCT#2 sinal fraco | Rx ~-28 dBm no trecho OXC2/porta9→T100DCT#2 RX (atenuação ~34 dB); verificar conector |
+| Rota L3 DC5↔DC6 | Subnets 10.0.0.0/24 e 10.0.1.0/24 — requer `ip route add` nos servidores DC5/DC6 |
+| FEC desabilitado | `fecRxEnabled=false` e `fecTxEnabled=false` nos transponders |
+
+---
+
+## Lições aprendidas — OXC2 Polatis REST API
+
+| Método HTTP | Endpoint | Comportamento |
+|---|---|---|
+| `POST` | `/api/data/optical-switch:cross-connects` | Candidato (~5s) ❌ |
+| `PUT`  | `/api/data/optical-switch:cross-connects` | Running (persiste) ✅ |
+| `DELETE` | `/api/data/optical-switch:cross-connects` | Remove todos |
+
+Body correto para `PUT`:
+```json
+{
+  "optical-switch:cross-connects": {
+    "pair": [
+      {"ingress": 1, "egress": 13},
+      {"ingress": 5, "egress": 9}
+    ]
+  }
+}
+```
+
+Body para `POST` (diferente — sem namespace):
+```json
+{
+  "pair": [
+    {"ingress": 1, "egress": 13},
+    {"ingress": 5, "egress": 9}
+  ]
+}
+```
 
 ---
 
@@ -314,57 +527,33 @@ Acesse: `http://172.17.36.231:8181/onos/ui` (usuário: `onos`, senha: `rocks`)
 
 ```
 src/main/java/org/onosproject/drivers/padtec/
-├── PadtecManager.java              # Lança PadtecMonitorJSON3 via ProcessBuilder
-├── PadtecDeviceProvider.java       # Registra device + portas + refresh 60s + estatísticas
-├── PadtecLinkProvider.java         # Injeta links ópticos Padtec↔Polatis no ONOS
-├── PadtecDeviceDescription.java    # Driver behaviour: discoverPortDetails, discoverPortStatistics
-├── PadtecAlarmConsumer.java        # 6 tipos de alarme lidos das anotações de porta
-├── PadtecPowerConfig.java          # Potência real via anotações de porta (PowerConfig)
-├── PadtecLambdaQuery.java          # Canal real → OchSignal correto (grade ITU-T 50GHz)
-├── PadtecPortAdmin.java            # isEnabled() real via DeviceService
-├── PadtecFlowRuleProgrammable.java # Somente leitura (sem flows)
-├── PadtecLinkDiscovery.java        # Stub (links injetados pelo PadtecLinkProvider)
-├── GnmiHandshaker.java             # DeviceHandshaker
-└── PadtecDriversLoader.java
-
-src/main/resources/
-├── padtec-drivers.xml              # Declaração do driver e todos os behaviours
-└── OSGI-INF/
-
-Outros/TailEndController/
-├── PadtecMonitorJSON3.java         # Processo Java 18: coleta contínua (loop 60s)
-├── PadtecAgentServer.java          # Servidor TCP :10151 que serve o JSON ao ONOS
-└── lib/                            # JARs proprietários Padtec (Java 18 + .so nativos)
-
-tools/
-├── coletar_padtec_onos.py          # Script Python para extração de dados via ONOS REST
-├── padtec-links.example.json       # Topologia real verificada (Padtec↔Polatis)
-├── add_cross_rest.py               # Cross-connects nos Polatis (reexecutar após reinício)
-├── netconf-cfg1.json               # Config NETCONF Polatis-1 (172.17.36.21)
-├── netconf-cfg2.json               # Config NETCONF Polatis-2 (172.17.36.22)
+├── PadtecDeviceDescription.java    # discoverPortDetails + discoverPortStatistics
+├── PadtecDeviceProvider.java       # Registra device + polling ~20s + portas + stats
+├── PadtecAlarmConsumer.java        # 6 tipos de alarme via anotações de porta
+├── PadtecPowerConfig.java          # PowerConfig — potência real para plano óptico
+├── PadtecLambdaQuery.java          # Canal DWDM → OchSignal (grade ITU-T 50GHz)
+├── PadtecPortAdmin.java            # isEnabled() real
+├── PadtecFlowRuleProgrammable.java # Somente leitura
 └── ...
 
-setup_onos_lab.sh                   # Script de inicialização completo do lab
-pom.xml                             # Build Maven (Java 11, OSGi bundle)
-padtec-netcfg.json                  # Network config do device Padtec no ONOS
+Outros/TailEndController/
+├── PadtecMonitorJSON3.java         # Processo Java 18: coleta contínua do hardware
+├── PadtecAgentServer.java          # Servidor TCP :10151
+└── lib/                            # JARs + .so nativos Padtec (Java 18)
+
+tools/
+├── lab-topology.json               # Links estáticos + supressões (allowed=false)
+├── add_cross_rest.py               # Cross-connects OXC2 via PUT: 1→13 e 5→9
+├── keepalive_cross.py              # Loop: re-aplica cross-connects a cada 60s
+├── scan_oxc2_ports.py              # Descobre qual porta do OXC2 está ligada a cada transponder
+├── fix_cross_persist.py            # Diagnóstico: testa POST vs PUT vs commit RESTCONF
+├── status_lab.py                   # Snapshot: cross-connects + sinal Padtec + alarmes
+├── coletar_padtec_onos.py          # Coleta completa via ONOS REST (CSV/JSON/alarmes)
+├── netconf-cfg1.json               # OXC1 (172.17.36.21) — COM DEFEITO
+├── netconf-cfg2.json               # OXC2 (172.17.36.22) — referência (não usar no ONOS)
+└── start_agent.sh                  # Inicia agente TCP manualmente
+
+setup_onos_lab.sh                   # Setup completo do lab (ONOS + agente + keepalive + links)
+padtec-netcfg.json                  # Network config do Padtec no ONOS
+pom.xml                             # Build Maven (Java 11, OSGi)
 ```
-
----
-
-## Notas de implementação
-
-### Por que o driver não importa a biblioteca Padtec diretamente
-
-Há duas barreiras intransponíveis:
-- **Java incompatível**: ONOS roda em Java 11 (OSGi Karaf). A lib Padtec exige Java 18 + arquivos `.so` nativos (JNI).
-- **OSGi classloader**: O Karaf isola classloaders por bundle. JARs não-OSGi (`br.com.padtec.v3.*`) não podem ser carregados no container.
-
-A solução é o **bridge TCP**: `PadtecMonitorJSON3` (Java 18) chama o SDK real e publica os dados via `PadtecAgentServer` (TCP :10151). O driver ONOS (Java 11) lê o JSON via socket.
-
-### Bug ONOS 3.0.0-SNAPSHOT — endpoint de alarmes
-
-O app `faultmanagement` no ONOS 3.0.0-SNAPSHOT registra o contexto REST em `onos/dhcp` em vez de `onos/v1` por um bug de packaging no Karaf. Use:
-```
-GET http://localhost:8181/onos/dhcp/alarms
-```
-em vez de `/onos/v1/alarms`.

@@ -4,14 +4,15 @@
       "netconf": {
         "ip": "172.17.36.21",
         "port": 830,
-        "username": "admin",
+        "username": "root",
         "password": "root",
         "connect-timeout": 30,
         "reply-timeout": 30,
         "idle-timeout": 300
       },
       "basic": {
-        "driver": "polatis-netconf"
+        "driver": "polatis-netconf",
+        "name": "OXC1-DEFEITO"
       }
     }
   }
