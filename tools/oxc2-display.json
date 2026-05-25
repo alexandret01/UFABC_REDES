@@ -1,0 +1,31 @@
+{
+  "_comment": "Registra OXC2 no ONOS apenas para visualização na topologia.",
+  "_comment2": "NÃO inclui seção 'netconf' — sem credenciais, o NETCONF provider",
+  "_comment3": "não abre sessão e não interfere com os cross-connects.",
+  "_comment4": "Cross-connects são gerenciados externamente por keepalive_cross.py.",
+
+  "devices": {
+    "netconf:172.17.36.22:830": {
+      "basic": {
+        "name": "OXC2 (Polatis 8x8)",
+        "driver": "polatis-netconf",
+        "managementAddress": "172.17.36.22"
+      }
+    }
+  },
+
+  "links": {
+    "padtec:172.17.36.50/1-netconf:172.17.36.22:830/1": {
+      "basic": { "type": "OPTICAL", "durable": true }
+    },
+    "netconf:172.17.36.22:830/1-padtec:172.17.36.50/1": {
+      "basic": { "type": "OPTICAL", "durable": true }
+    },
+    "padtec:172.17.36.50/2-netconf:172.17.36.22:830/5": {
+      "basic": { "type": "OPTICAL", "durable": true }
+    },
+    "netconf:172.17.36.22:830/5-padtec:172.17.36.50/2": {
+      "basic": { "type": "OPTICAL", "durable": true }
+    }
+  }
+}
