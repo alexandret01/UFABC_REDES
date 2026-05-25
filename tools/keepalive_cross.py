@@ -67,7 +67,7 @@ try:
         ts = time.strftime("%H:%M:%S")
         ok, code = apply_cross()
         symbol = "✓" if ok else "✗"
-        print(f"[{ts}] #{iteration:4d} POST {symbol} (HTTP {code})", flush=True)
+        print(f"[{ts}] #{iteration:4d} PUT  {symbol} (HTTP {code})", flush=True)
 
         if ONCE:
             print("Modo --once: saindo após primeira aplicação.")

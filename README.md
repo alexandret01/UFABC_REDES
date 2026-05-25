@@ -27,17 +27,17 @@ Padtec porta 1                          Padtec porta 2
     ▼                                            ▼
 OXC2/Polatis porta 1 (ingress)          OXC2/Polatis porta 5 (ingress)
     │                                            │
-    └──── cross-connect 1→13 ───────────────────┘ (TX do #2 → RX do #27)
-    └──── cross-connect 5→9  ───────────────────┘ (TX do #27 → RX do #2)
+    └──── cross-connect 1→13 ────────────────────┘ (TX do #2 → RX do #27)
+    └──── cross-connect 5→9  ────────────────────┘ (TX do #27 → RX do #2)
     │                                            │
 OXC2/Polatis porta 13 (egress)          OXC2/Polatis porta 9 (egress)
     │                                            │
-    └──────── RX do T100DCT#27 ◄─────────────────┘
-    └──────── RX do T100DCT#2  ◄─────────────────┘
+    └──────── RX do T100DCT#27 ◄────────────────┘
+    └──────── RX do T100DCT#2  ◄────────────────┘
 
-Supervisor Padtec: 172.17.36.50:8886
-OXC2 (Polatis): 172.17.36.22:830 (NETCONF) / 172.17.36.22:8008 (REST)
-OXC1 (Polatis): 172.17.36.21 — COM DEFEITO (credenciais NETCONF desconhecidas)
+Supervisor Padtec : 172.17.36.50:8886
+OXC2 (Polatis)    : 172.17.36.22:830 (NETCONF) / 172.17.36.22:8008 (REST)
+OXC1 (Polatis)    : 172.17.36.21 — COM DEFEITO (credenciais NETCONF desconhecidas)
 ```
 
 ### Fluxo de dados completo
@@ -49,16 +49,21 @@ DC5 → PAV1 → Padtec T100DCT#2 (cliente) → Padtec T100DCT#2 (WDM)
 
 ---
 
-## Dispositivos no ONOS (4 total)
+## Dispositivos no ONOS (3 gerenciados + OXC2 externo)
 
 | Device ID | Tipo | Status | IP |
 |---|---|---|---|
 | `padtec:172.17.36.50` | Padtec SPVL4 | AVAILABLE | 172.17.36.50 |
-| `netconf:172.17.36.22:830` | Polatis OXC2 | AVAILABLE | 172.17.36.22 |
 | `of:5e3ec454441280b9` | Pica8 PAV1 | AVAILABLE | 172.17.36.210 |
 | `of:5e3ec454443294fb` | Pica8 PAV2 | AVAILABLE | 172.17.36.211 |
 
-> **OXC1 (172.17.36.21)**: equipamento com defeito. Responde ping mas NETCONF falha com autenticação — credenciais desconhecidas. Não aparece no ONOS.
+> **OXC2 (172.17.36.22)**: gerenciado **diretamente via REST** pelo `keepalive_cross.py`,
+> **fora do ONOS** para evitar que o driver `polatis-netconf` limpe os cross-connects durante
+> sync periódico. Topologia usa links estáticos (`lab-topology.json`) para representar as
+> conexões Padtec↔OXC2 no mapa do ONOS.
+
+> **OXC1 (172.17.36.21)**: equipamento com defeito. Responde ping mas NETCONF falha com
+> autenticação — credenciais desconhecidas. Não aparece no ONOS.
 
 ---
 
@@ -66,10 +71,10 @@ DC5 → PAV1 → Padtec T100DCT#2 (cliente) → Padtec T100DCT#2 (WDM)
 
 | Porta | Tipo | Equipamento | Função |
 |---|---|---|---|
-| 1 | OCH (WDM) | T100DCT-4GTT2L#2 | Enlace WDM → OXC2/porta 1 |
-| 2 | OCH (WDM) | T100DCT-4GTT2L#27 | Enlace WDM → OXC2/porta 5 |
+| 1 | OCH (WDM) | T100DCT-4GTT2L#2  | Enlace WDM → OXC2/porta 1 (ingress) |
+| 2 | OCH (WDM) | T100DCT-4GTT2L#27 | Enlace WDM → OXC2/porta 5 (ingress) |
 | 3 | OCH (WDM) | T25DC26-4BRE4L#10 | Amplificador (sem link ativo) |
-| 4 | COPPER 10G | T100DCT-4GTT2L#2 | Cliente LR → PAV1/porta 49 |
+| 4 | COPPER 10G | T100DCT-4GTT2L#2  | Cliente LR → PAV1/porta 49 |
 | 5 | COPPER 10G | T100DCT-4GTT2L#27 | Cliente LR → PAV2/porta 49 |
 
 ---
@@ -107,9 +112,15 @@ Links definidos em `tools/lab-topology.json`. Links espúrios (OXC1, amplificado
 │                      ▼                                             │
 │               Supervisor 172.17.36.50:8886                         │
 └────────────────────────────────────────────────────────────────────┘
+
+keepalive_cross.py (processo independente, loop a cada 60s)
+    └── PUT http://172.17.36.22:8008/api/data/optical-switch:cross-connects
+           └── cross-connects 1→13 e 5→9 (persistentes via PUT)
 ```
 
 **Por que bridge TCP?** A lib Padtec exige Java 18 + JNI (`.so` nativos), incompatível com o OSGi do ONOS (Java 11). O `PadtecMonitorJSON3` roda como processo Java 18 separado e expõe os dados via socket TCP.
+
+**Por que keepalive externo?** O driver `polatis-netconf` do ONOS faz sync periódico com o OXC2 e apaga os cross-connects a cada ~8 minutos. A solução é remover OXC2 do ONOS e manter os cross-connects via `keepalive_cross.py` usando `PUT` (que persiste no datastore running do Polatis).
 
 ---
 
@@ -145,14 +156,67 @@ mvn clean package -DskipTests
 1. Compila e inicia o agente Padtec (Java 18, TCP :10151)
 2. Inicia o ONOS (Bazel, limpo)
 3. Ativa apps necessárias (openflow, fwd, proxyarp, netconf, optical-model, faultmanagement, netcfglinksprovider, etc.)
-4. Registra OXC2 via NETCONF (`tools/netconf-cfg2.json`)
-5. Registra OXC1 via NETCONF (`tools/netconf-cfg1.json`) — ficará UNAVAILABLE por defeito
-6. Instala o driver Padtec (`.oar`)
-7. Injeta configuração do device Padtec (`padtec-netcfg.json`)
-8. Aplica cross-connects no OXC2 (`tools/add_cross_rest.py`)
-9. Injeta links estáticos da topologia (`tools/lab-topology.json`)
+4. Registra OXC1 via NETCONF (`tools/netconf-cfg1.json`) — ficará UNAVAILABLE por defeito
+5. Instala o driver Padtec (`.oar`)
+6. Injeta configuração do device Padtec (`padtec-netcfg.json`)
+7. Inicia `keepalive_cross.py` em background (aplica cross-connects OXC2 via PUT a cada 60s)
+8. Injeta links estáticos da topologia (`tools/lab-topology.json`)
 
-> **Atenção:** Os cross-connects do Polatis **não persistem após reinício** do hardware. Sempre rode `python3 tools/add_cross_rest.py` após ligar o OXC2.
+> **Importante:** OXC2 **não** é mais registrado via NETCONF no ONOS. Os cross-connects são
+> gerenciados exclusivamente pelo `keepalive_cross.py`. Log em `/tmp/keepalive_cross.log`.
+
+---
+
+## Cross-connects OXC2 (gerenciamento externo)
+
+O Polatis OXC2 tem dois datastores: **candidate** (temporário) e **running** (persistente).
+- `POST` → candidate → **expirado em ~5 segundos** ❌
+- `PUT`  → running  → **persiste indefinidamente** ✅
+
+O driver NETCONF do ONOS, quando conectado ao OXC2, limpa o running periodicamente (~8 min).
+Por isso o OXC2 é gerenciado fora do ONOS.
+
+```bash
+# Ver cross-connects ativos
+curl -s -u admin:root \
+  "http://172.17.36.22:8008/api/data/optical-switch:cross-connects" \
+  -H "Accept: application/yang-data+json" | python3 -m json.tool
+
+# Reaplicar manualmente (após reinício do Polatis)
+python3 tools/add_cross_rest.py
+
+# Iniciar keepalive em background
+nohup python3 tools/keepalive_cross.py > /tmp/keepalive_cross.log 2>&1 &
+
+# Ver log do keepalive
+tail -f /tmp/keepalive_cross.log
+
+# Descobrir em qual porta do OXC2 um transponder está conectado
+python3 tools/scan_oxc2_ports.py
+```
+
+---
+
+## Estado do sinal óptico (verificado)
+
+```bash
+# Snapshot rápido: cross-connects + potência Padtec + alarmes
+python3 tools/status_lab.py
+
+# Watch contínuo (atualiza a cada 15s)
+python3 tools/status_lab.py --watch
+```
+
+**Valores esperados com o caminho óptico estabelecido:**
+
+| Porta | Equipamento | WDM Rx | isLOS |
+|---|---|---|---|
+| 1 | T100DCT#2  | ~-28 a -29 dBm | false |
+| 2 | T100DCT#27 | ~-9 dBm        | false |
+
+> **Nota:** A potência recebida na T100DCT#2 (-28 dBm) é baixa mas acima do threshold de LOS.
+> A assimetria (34 dB de perda vs ~14 dB no outro sentido) sugere conector sujo ou cabo com
+> maior atenuação no trecho OXC2/porta9 → T100DCT#2 RX.
 
 ---
 
@@ -184,22 +248,18 @@ curl -X POST -H "content-type:application/json" \
 
 ---
 
-## Cross-connects OXC2
-
-```bash
-# Verificar se estão ativos
-curl -sS -u admin:root \
-  "http://172.17.36.22:8008/api/data/optical-switch:cross-connects" \
-  -H "Accept: application/yang-data+json"
-# Esperado: HTTP 200 com pares ingress=1/egress=13 e ingress=5/egress=9
-
-# Reaplicar (após reinício do Polatis)
-python3 tools/add_cross_rest.py
-```
-
----
-
 ## Extrair dados de monitoramento
+
+### Snapshot completo (recomendado)
+```bash
+python3 tools/coletar_padtec_onos.py
+# Com CSV:
+python3 tools/coletar_padtec_onos.py --loop --intervalo 60 --csv /tmp/padtec.csv
+# Só alarmes:
+python3 tools/coletar_padtec_onos.py --alarmes
+# JSON bruto:
+python3 tools/coletar_padtec_onos.py --json
+```
 
 ### Potência óptica e alarmes por porta
 ```bash
@@ -226,7 +286,9 @@ for p in json.load(sys.stdin)['ports'][:3]:
     ann = p['annotations']
     rx  = ann.get('inputPowerWDM', ann.get('powerInput', 'N/A'))
     tx  = ann.get('outputPowerWDM', ann.get('powerOutput', 'N/A'))
-    print(f\"Porta {p['port']} {ann.get('neName','?'):25} isLOS={ann.get('isLOS','?')} | RX={rx} dBm | TX={tx} dBm\")
+    los = ann.get('isLOS','?')
+    bdi = ann.get('isBDI','?')
+    print(f\"Porta {p['port']} {ann.get('neName','?'):25} isLOS={los} isBDI={bdi} | RX={rx} dBm | TX={tx} dBm\")
 "
 ```
 
@@ -297,7 +359,10 @@ for d in devices:
 ## Verificação rápida do estado do lab
 
 ```bash
-# Devices
+# Status completo (cross-connects + sinal + alarmes)
+python3 tools/status_lab.py
+
+# Devices no ONOS
 curl -sS -u onos:rocks http://localhost:8181/onos/v1/devices | python3 -c "
 import json,sys
 for d in json.load(sys.stdin)['devices']:
@@ -311,6 +376,11 @@ print(f'{len(d[\"links\"])} links')
 for l in d['links']:
     print(f\"  {l['type']:8} {l['src']['device'].split(':')[-1]}/{l['src']['port']} -> {l['dst']['device'].split(':')[-1]}/{l['dst']['port']}\")
 "
+
+# Cross-connects OXC2
+curl -s -u admin:root \
+  "http://172.17.36.22:8008/api/data/optical-switch:cross-connects" \
+  -H "Accept: application/yang-data+json" | python3 -m json.tool
 
 # Alarmes
 curl -sS -u onos:rocks http://localhost:8181/onos/v1/alarms | python3 -c "
@@ -401,7 +471,7 @@ for a in d.get('alarms',[]): print(f'  [{a[\"severity\"]}] {a[\"description\"][:
 
 Acesse: `http://172.17.36.231:8181/onos/ui` (usuário: `onos`, senha: `rocks`)
 
-- **Devices** → 4 devices (Padtec, OXC2, PAV1, PAV2)
+- **Devices** → 3 devices online (Padtec, PAV1, PAV2) + OXC2 representado via links estáticos
 - **Ports** → 5 portas Padtec com canal, potência e status em tempo real
 - **Links** → 4 links bidirecionais (2 OPTICAL + 2 DIRECT)
 - **Alarms** → alarmes LOS/LOF/BDI/FEC quando há falha óptica
@@ -413,10 +483,43 @@ Acesse: `http://172.17.36.231:8181/onos/ui` (usuário: `onos`, senha: `rocks`)
 | Item | Status |
 |---|---|
 | OXC1 (172.17.36.21) com defeito | Credenciais NETCONF desconhecidas — HTTP 401 em todas as tentativas |
-| LOS nos transponders | OXC2 portas 9 e 13 precisam de fibras conectadas nos RX do Padtec |
-| Rota L3 DC5↔DC6 | Subnets 10.0.0.0/24 e 10.0.1.0/24 — requer `ip route add` em cada servidor |
-| Senha dos servidores DC5/DC6 | SSH com usuário `optinet` — senha desconhecida |
+| OXC2 fora do ONOS | Driver `polatis-netconf` limpa cross-connects periodicamente; OXC2 gerenciado via REST externo |
+| LOF nos transponders | Loss of Frame OTN — sinal óptico presente mas framing pendente; esperado sem tráfego cliente |
+| T100DCT#2 sinal fraco | Rx ~-28 dBm no trecho OXC2/porta9→T100DCT#2 RX (atenuação ~34 dB); verificar conector |
+| Rota L3 DC5↔DC6 | Subnets 10.0.0.0/24 e 10.0.1.0/24 — requer `ip route add` nos servidores DC5/DC6 |
 | FEC desabilitado | `fecRxEnabled=false` e `fecTxEnabled=false` nos transponders |
+
+---
+
+## Lições aprendidas — OXC2 Polatis REST API
+
+| Método HTTP | Endpoint | Comportamento |
+|---|---|---|
+| `POST` | `/api/data/optical-switch:cross-connects` | Candidato (~5s) ❌ |
+| `PUT`  | `/api/data/optical-switch:cross-connects` | Running (persiste) ✅ |
+| `DELETE` | `/api/data/optical-switch:cross-connects` | Remove todos |
+
+Body correto para `PUT`:
+```json
+{
+  "optical-switch:cross-connects": {
+    "pair": [
+      {"ingress": 1, "egress": 13},
+      {"ingress": 5, "egress": 9}
+    ]
+  }
+}
+```
+
+Body para `POST` (diferente — sem namespace):
+```json
+{
+  "pair": [
+    {"ingress": 1, "egress": 13},
+    {"ingress": 5, "egress": 9}
+  ]
+}
+```
 
 ---
 
@@ -440,13 +543,17 @@ Outros/TailEndController/
 
 tools/
 ├── lab-topology.json               # Links estáticos + supressões (allowed=false)
-├── add_cross_rest.py               # Cross-connects OXC2: 1→13 e 5→9
+├── add_cross_rest.py               # Cross-connects OXC2 via PUT: 1→13 e 5→9
+├── keepalive_cross.py              # Loop: re-aplica cross-connects a cada 60s
+├── scan_oxc2_ports.py              # Descobre qual porta do OXC2 está ligada a cada transponder
+├── fix_cross_persist.py            # Diagnóstico: testa POST vs PUT vs commit RESTCONF
+├── status_lab.py                   # Snapshot: cross-connects + sinal Padtec + alarmes
+├── coletar_padtec_onos.py          # Coleta completa via ONOS REST (CSV/JSON/alarmes)
 ├── netconf-cfg1.json               # OXC1 (172.17.36.21) — COM DEFEITO
-├── netconf-cfg2.json               # OXC2 (172.17.36.22) — ativo
-├── padtec-links.example.json       # Topologia física verificada
+├── netconf-cfg2.json               # OXC2 (172.17.36.22) — referência (não usar no ONOS)
 └── start_agent.sh                  # Inicia agente TCP manualmente
 
-setup_onos_lab.sh                   # Setup completo do lab (ONOS + agente + links)
+setup_onos_lab.sh                   # Setup completo do lab (ONOS + agente + keepalive + links)
 padtec-netcfg.json                  # Network config do Padtec no ONOS
 pom.xml                             # Build Maven (Java 11, OSGi)
 ```
