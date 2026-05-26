@@ -90,20 +90,48 @@ public class PadtecDeviceProvider implements DeviceProvider {
         }, 45000);
     }
 
-    /** Inicia timer periódico para atualizar estatísticas de porta no ONOS. */
+    /**
+     * Inicia timer periódico que, a cada STATS_INTERVAL_MS (60s):
+     *  1. Relê todas as portas do agente e publica via updatePorts()
+     *  2. Atualiza as anotações do device (lastCollected)
+     *  3. Atualiza as estatísticas de porta via updatePortStatistics()
+     */
     private void startStatsPolling() {
-        statsTimer = new Timer("padtec-stats", true);
+        statsTimer = new Timer("padtec-poller", true);
         statsTimer.scheduleAtFixedRate(new TimerTask() {
             @Override
             public void run() {
+                if (providerService == null) {
+                    return;
+                }
                 try {
+                    // --- 1. Refresh de portas + device description ---
+                    List<PortDescription> ports = readPortsFromAgent();
+                    if (!ports.isEmpty()) {
+                        DeviceDescription desc = new DefaultDeviceDescription(
+                                DEVICE_ID.uri(),
+                                Device.Type.OPTICAL_AMPLIFIER,
+                                "Padtec", "SPVL4 Controller", "1.0", "TCP-Agent",
+                                new ChassisId(), true,
+                                DefaultAnnotations.builder()
+                                        .set("lastCollected", lastCollected)
+                                        .set("supervisor", PADTEC_IP + ":8886")
+                                        .build());
+                        providerService.deviceConnected(DEVICE_ID, desc);
+                        providerService.updatePorts(DEVICE_ID, ports);
+                        log.debug("Portas atualizadas: {} porta(s), lastCollected={}.",
+                                ports.size(), lastCollected);
+                    }
+
+                    // --- 2. Refresh de estatísticas ---
                     Collection<PortStatistics> stats = readStatsFromAgent();
-                    if (!stats.isEmpty() && providerService != null) {
+                    if (!stats.isEmpty()) {
                         providerService.updatePortStatistics(DEVICE_ID, stats);
                         log.debug("Estatísticas de {} porta(s) atualizadas no ONOS.", stats.size());
                     }
+
                 } catch (Exception e) {
-                    log.warn("Erro ao atualizar estatísticas Padtec: {}", e.getMessage());
+                    log.warn("Erro no ciclo de polling Padtec: {}", e.getMessage());
                 }
             }
         }, 5000, STATS_INTERVAL_MS);
@@ -206,7 +234,7 @@ public class PadtecDeviceProvider implements DeviceProvider {
                         }
                         ports.add(DefaultPortDescription.builder()
                                 .withPortNumber(PortNumber.portNumber(portIdx++))
-                                .isEnabled(!isLOS)
+                                .isEnabled(true)   // isLOS é alarme de sinal, não estado administrativo
                                 .type(Port.Type.FIBER)
                                 .annotations(ampAnn.build())
                                 .build());
@@ -219,28 +247,75 @@ public class PadtecDeviceProvider implements DeviceProvider {
                                 .set("channel", metrics.path("channel").asText())
                                 .set("isLOS", String.valueOf(isLOS));
 
-                        // Campos extras presentes nos Transponders (podem ser null/NaN no hardware)
-                        if (!metrics.path("inputPower").isMissingNode()) {
-                            ann.set("inputPower", metrics.path("inputPower").isNull()
-                                    ? "N/A" : String.valueOf(metrics.path("inputPower").asDouble()));
-                        }
-                        if (!metrics.path("outputPower").isMissingNode()) {
-                            ann.set("outputPower", metrics.path("outputPower").isNull()
-                                    ? "N/A" : String.valueOf(metrics.path("outputPower").asDouble()));
-                        }
-                        if (!metrics.path("lambda").isMissingNode()) {
-                            ann.set("lambda", String.valueOf(metrics.path("lambda").asDouble()));
-                        }
+                        // Campos comuns (Transponder genérico)
+                        setIfPresent(ann, metrics, "inputPower");
+                        setIfPresent(ann, metrics, "outputPower");
+                        setIfPresent(ann, metrics, "lambda");
+
+                        // Campos exclusivos do OTNTransponder (interface WDM)
+                        setIfPresent(ann, metrics, "inputPowerWDM");
+                        setIfPresent(ann, metrics, "outputPowerWDM");
+                        setIfPresent(ann, metrics, "isLOF");
+                        setIfPresent(ann, metrics, "isOff");
+
+                        // ODU-k (qualidade de sinal / erros)
+                        setIfPresent(ann, metrics, "bip8Rate");
+                        setIfPresent(ann, metrics, "beiRate");
+                        setIfPresent(ann, metrics, "isBDI");
+
+                        // FEC
+                        setIfPresent(ann, metrics, "fecName");
+                        setIfPresent(ann, metrics, "fecErrors");
+                        setIfPresent(ann, metrics, "fecRate");
+                        setIfPresent(ann, metrics, "fecRxEnabled");
+                        setIfPresent(ann, metrics, "fecTxEnabled");
+
+                        // Interface cliente
+                        setIfPresent(ann, metrics, "inputPowerClient");
+                        setIfPresent(ann, metrics, "outputPowerClient");
+                        setIfPresent(ann, metrics, "clientLambda");
+                        setIfPresent(ann, metrics, "isClientLOS");
+                        setIfPresent(ann, metrics, "isClientLOF");
+                        setIfPresent(ann, metrics, "isClientOff");
 
                         ports.add(DefaultPortDescription.builder()
                                 .withPortNumber(PortNumber.portNumber(portIdx++))
-                                .isEnabled(!isLOS)
+                                .isEnabled(true)   // isLOS é alarme de sinal, não estado administrativo
                                 .type(Port.Type.OCH)
                                 .annotations(ann.build())
                                 .build());
                     }
                 }
-                log.info("{} porta(s) parseada(s) do JSON do agente.", ports.size());
+                // Segunda passagem: portas CLIENTE (lado LR/Ethernet) dos OTNTransponders.
+                // Porta 4 = T100DCT#2 cliente (→ PAV1/49)
+                // Porta 5 = T100DCT#27 cliente (→ PAV2/49)
+                for (JsonNode node : devicesNode) {
+                    String type    = node.path("type").asText();
+                    String name    = node.path("name").asText();
+                    JsonNode metrics = node.path("metrics");
+
+                    if ("OTNTransponder".equals(type)) {
+                        DefaultAnnotations.Builder clientAnn = DefaultAnnotations.builder()
+                                .set("neName", name)
+                                .set("type", type)
+                                .set("side", "client");
+                        setIfPresent(clientAnn, metrics, "inputPowerClient");
+                        setIfPresent(clientAnn, metrics, "outputPowerClient");
+                        setIfPresent(clientAnn, metrics, "clientLambda");
+                        setIfPresent(clientAnn, metrics, "isClientLOS");
+                        setIfPresent(clientAnn, metrics, "isClientLOF");
+                        setIfPresent(clientAnn, metrics, "isClientOff");
+
+                        ports.add(DefaultPortDescription.builder()
+                                .withPortNumber(PortNumber.portNumber(portIdx++))
+                                .isEnabled(true)
+                                .type(Port.Type.COPPER)
+                                .portSpeed(10000L)   // 10G LR
+                                .annotations(clientAnn.build())
+                                .build());
+                    }
+                }
+                log.info("{} porta(s) parseada(s) do JSON do agente (WDM + cliente).", ports.size());
             } else {
                 log.warn("JSON do agente não contém array 'devices'.");
             }
@@ -287,19 +362,23 @@ public class PadtecDeviceProvider implements DeviceProvider {
             long now = System.currentTimeMillis() / 1000L;
             int portIdx = 1;
             for (JsonNode node : devicesNode) {
-                String type    = node.path("type").asText();
+                String type      = node.path("type").asText();
                 JsonNode metrics = node.path("metrics");
 
-                long rxPower = 0L;
-                long txPower = 0L;
+                long rxPower   = 0L;
+                long txPower   = 0L;
+                long fecErrors = 0L;
 
                 if ("Transponder".equals(type)) {
-                    if (!metrics.path("inputPower").isMissingNode() && !metrics.path("inputPower").isNull()) {
-                        rxPower = Math.round(metrics.path("inputPower").asDouble() * 1000.0);
-                    }
-                    if (!metrics.path("outputPower").isMissingNode() && !metrics.path("outputPower").isNull()) {
-                        txPower = Math.round(metrics.path("outputPower").asDouble() * 1000.0);
-                    }
+                    rxPower = longFromMetric(metrics, "inputPower",  1000.0);
+                    txPower = longFromMetric(metrics, "outputPower", 1000.0);
+                } else if ("OTNTransponder".equals(type)) {
+                    rxPower   = longFromMetric(metrics, "inputPowerWDM",  1000.0);
+                    txPower   = longFromMetric(metrics, "outputPowerWDM", 1000.0);
+                    fecErrors = longFromMetric(metrics, "fecErrors", 1.0);
+                } else if ("Amplifier".equals(type)) {
+                    rxPower = longFromMetric(metrics, "powerInput",  1000.0);
+                    txPower = longFromMetric(metrics, "powerOutput", 1000.0);
                 }
 
                 stats.add(DefaultPortStatistics.builder()
@@ -307,11 +386,11 @@ public class PadtecDeviceProvider implements DeviceProvider {
                         .setPort(PortNumber.portNumber(portIdx++))
                         .setBytesReceived(0)
                         .setBytesSent(0)
-                        .setPacketsReceived(rxPower)
-                        .setPacketsSent(txPower)
+                        .setPacketsReceived(rxPower)    // potência de entrada × 1000 (dBm como long)
+                        .setPacketsSent(txPower)        // potência de saída   × 1000
                         .setPacketsRxDropped(0)
                         .setPacketsTxDropped(0)
-                        .setPacketsRxErrors(0)
+                        .setPacketsRxErrors(fecErrors)  // contador real de erros FEC (OTNTransponder)
                         .setPacketsTxErrors(0)
                         .setDurationSec(now)
                         .setDurationNano(0)
@@ -322,6 +401,43 @@ public class PadtecDeviceProvider implements DeviceProvider {
             log.debug("Erro ao ler estatísticas do agente: {}", e.getMessage());
         }
         return stats;
+    }
+
+    // -----------------------------------------------------------------------
+    // Helpers
+    // -----------------------------------------------------------------------
+
+    /**
+     * Lê campo numérico do JSON de métricas e retorna (valor × factor) como long.
+     * Retorna 0 se o campo estiver ausente ou nulo.
+     */
+    private static long longFromMetric(JsonNode metrics, String field, double factor) {
+        JsonNode node = metrics.path(field);
+        if (node.isMissingNode() || node.isNull()) {
+            return 0L;
+        }
+        return Math.round(node.asDouble() * factor);
+    }
+
+    /**
+     * Adiciona campo de anotação apenas se presente no JSON e não nulo.
+     * Valores null JSON viram "N/A". Booleanos e números são convertidos para String.
+     */
+    private static void setIfPresent(DefaultAnnotations.Builder ann,
+                                     JsonNode metrics, String field) {
+        JsonNode node = metrics.path(field);
+        if (node.isMissingNode()) {
+            return;
+        }
+        if (node.isNull()) {
+            ann.set(field, "N/A");
+        } else if (node.isBoolean()) {
+            ann.set(field, String.valueOf(node.asBoolean()));
+        } else if (node.isNumber()) {
+            ann.set(field, String.valueOf(node.asDouble()));
+        } else {
+            ann.set(field, node.asText());
+        }
     }
 
     @Deactivate

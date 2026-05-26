@@ -1,0 +1,34 @@
+[
+  {
+    "_comment": "Topologia física verificada — OPTINET Multi-Layer Testbed (UFABC, lab 172.17.36.x)",
+    "_oxc1": "netconf:172.17.36.21:830 — COM DEFEITO, fora de uso",
+    "_oxc2": "netconf:172.17.36.22:830 — ativo (Polatis serial 2820, 16 portas)",
+    "_cross_connects_oxc2": "1<->13 (T100DCT#2 WDM <-> T100DCT#27 WDM) | 5<->9 (retorno)",
+    "_fluxo": "DC5 -> PAV1 -> T100DCT#2 (cliente LR) -> [WDM port1] -> OXC2 -> [WDM port2] -> T100DCT#27 (cliente LR) -> PAV2 -> DC6",
+    "_nota": "Cross-connects nao persistem apos reinicio do OXC — rode add_cross_rest.py no setup",
+    "_servidores": "DC5: 172.17.36.208 (10.0.0.2/24) | DC6: 172.17.36.214 (10.0.1.2/24)",
+    "_switches": "PAV1: 172.17.36.210 of:5e3ec454441280b9 | PAV2: 172.17.36.211 of:5e3ec454443294fb"
+  },
+  {
+    "padtecPort": 1,
+    "padtecModule": "T100DCT-4GTT2L#2",
+    "channel": "C28",
+    "type": "OTNTransponder",
+    "wdmRemoteDevice": "netconf:172.17.36.22:830",
+    "wdmRemotePort": 1,
+    "clientRemoteDevice": "of:5e3ec454441280b9",
+    "clientRemotePort": 49,
+    "_descricao": "T100DCT#2 WDM -> OXC2 porta 1 (xconn 1<->13) | cliente LR -> PAV1 te-1/1/49"
+  },
+  {
+    "padtecPort": 2,
+    "padtecModule": "T100DCT-4GTT2L#27",
+    "channel": "C28",
+    "type": "OTNTransponder",
+    "wdmRemoteDevice": "netconf:172.17.36.22:830",
+    "wdmRemotePort": 5,
+    "clientRemoteDevice": "of:5e3ec454443294fb",
+    "clientRemotePort": 49,
+    "_descricao": "T100DCT#27 WDM -> OXC2 porta 5 (xconn 5<->9) | cliente LR -> PAV2 te-1/1/49"
+  }
+]

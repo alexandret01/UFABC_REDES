@@ -1,0 +1,23 @@
+{
+  "devices": {
+    "netconf:172.17.36.22:830": {
+      "basic": {
+        "name": "OXC2 (Polatis 8x8)"
+      }
+    }
+  },
+  "links": {
+    "padtec:172.17.36.50/1-netconf:172.17.36.22:830/1": {
+      "basic": { "type": "OPTICAL", "durable": true }
+    },
+    "netconf:172.17.36.22:830/1-padtec:172.17.36.50/1": {
+      "basic": { "type": "OPTICAL", "durable": true }
+    },
+    "padtec:172.17.36.50/2-netconf:172.17.36.22:830/5": {
+      "basic": { "type": "OPTICAL", "durable": true }
+    },
+    "netconf:172.17.36.22:830/5-padtec:172.17.36.50/2": {
+      "basic": { "type": "OPTICAL", "durable": true }
+    }
+  }
+}
