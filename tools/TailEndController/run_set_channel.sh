@@ -15,7 +15,9 @@ set -e
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 REPO_ROOT="$( cd "$SCRIPT_DIR/../.." && pwd )"
-SDK_DIR="$REPO_ROOT/Outros/TailEndController"
+# O SDK (lib/ e br/) reside em tools/TailEndController/ — são arquivos
+# locais não versionados que persistem entre trocas de branch.
+SDK_DIR="$SCRIPT_DIR"
 SRC="$SCRIPT_DIR/SetChannelC28.java"
 JAVA="/usr/lib/jvm/jdk-18.0.2.1/bin/java"
 JAVAC="/usr/lib/jvm/jdk-18.0.2.1/bin/javac"
@@ -43,24 +45,17 @@ if [ ! -x "$JAVAC" ]; then
     JAVA=$(which java 2>/dev/null || echo "java")
 fi
 
-# Copia o fonte para o SDK dir (onde estão lib/ e br/)
-echo "[1/3] Copiando SetChannelC28.java para $SDK_DIR ..."
-cp "$SRC" "$SDK_DIR/SetChannelC28.java"
-
-# Compila DE DENTRO do SDK dir (assim encontra lib/* e br/ com classes Padtec)
-echo "[2/3] Compilando..."
+# Compila DE DENTRO do SDK dir (onde estão lib/ e br/)
+echo "[1/3] Compilando em $SDK_DIR ..."
 cd "$SDK_DIR"
 $JAVAC -cp "./lib/*:." SetChannelC28.java
 echo "  -> Compilado com sucesso."
 
 # Executa
-echo "[3/3] Executando SetChannelC28 $@..."
+echo "[2/3] Executando SetChannelC28 $@..."
 echo ""
 $JAVA -Djava.library.path=./lib/ -cp "./lib/*:." SetChannelC28 "$@"
 RC=$?
-
-# Limpa o .java copiado (deixa o .class para reuso)
-rm -f "$SDK_DIR/SetChannelC28.java"
 
 echo ""
 echo "============================================================"
