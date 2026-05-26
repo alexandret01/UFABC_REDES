@@ -50,6 +50,160 @@ DC5 → PAV1 → Padtec T100DCT#2 (cliente) → Padtec T100DCT#2 (WDM)
 
 ---
 
+## ✅ GUIA COMPLETO — Colocar o lab para funcionar (DC5 ↔ DC6 ping)
+
+### Pré-requisito: estar na branch `main`
+
+```bash
+cd /home/sdn/onos27/drivers/padtec/git/UFABC_REDES
+git stash            # salva arquivos locais não comitados
+git checkout main
+git pull origin main
+git branch           # deve mostrar * main
+```
+
+> **Por que isso importa:** todos os scripts de correção (`fix_lab.sh`, `run_set_channel.sh`,
+> `check_lab.sh`, `pav_setup.sh`) e o `setup_onos_lab.sh` corrigido **só existem na branch main**.
+> O servidor historicamente ficava na branch `fix/lambda-query-guava` (versão antiga).
+
+---
+
+### PASSO 1 — Iniciar o laboratório
+
+```bash
+./setup_onos_lab.sh
+```
+
+Aguarda ~2 minutos. O script inicia: agente Padtec TCP, ONOS, apps necessárias,
+keepalive OXC2. OXC2 **não** é registrado no ONOS (evita que o driver apague cross-connects).
+
+---
+
+### PASSO 2 — Verificar / corrigir estado do lab
+
+```bash
+bash tools/check_lab.sh
+```
+
+Diagnóstico em ~10 segundos. O que verificar:
+- `✓ Keepalive` com PID e última iteração
+- `✓ OXC2 xconn: 1→13, 5→9`
+- `✓` nos dois transponders com `LOS=False BDI=False`
+- `✓ LLDP: PAV1:51 ↔ PAV2:50` (prova que caminho óptico está transparente)
+- **Sem** `⚠️ OXC2 NO ONOS` — se aparecer, execute `bash tools/fix_lab.sh`
+
+Se algo estiver errado:
+```bash
+bash tools/fix_lab.sh
+```
+
+---
+
+### PASSO 3 — Configurar canal C28 no T100DCT#27
+
+O T100DCT#27 precisa estar em **C28** (mesmo canal que o T100DCT#2).
+Após reinicializações, o equipamento volta ao canal salvo (C24 por padrão).
+
+```bash
+bash tools/TailEndController/run_set_channel.sh
+```
+
+O script copia o fonte para `Outros/TailEndController/` (onde estão os JARs do SDK),
+compila, executa e limpa. Tenta setar C28 via PPMv3.
+
+**Se o comando PPMv3 não funcionar** (setChannel marcado como "NOT WORKING" no SDK):
+- Acesse **fisicamente o painel frontal do T100DCT#27** e mude o canal para C28.
+- Salve a configuração para que persista após reinício.
+
+Confirme o sucesso:
+```bash
+bash tools/check_lab.sh
+# Deve mostrar: T100DCT#27: canal=C28  RX_WDM=-9.x dBm  LOS=False
+```
+
+---
+
+### PASSO 4 — Habilitar portas dos switches PAV1/PAV2
+
+A porta `te-1/1/49` (onde DC5/DC6 se conectam) tem `up-mode="false"` por padrão.
+Com isso, o ONOS não vê o tráfego dos servidores e não aprende os hosts.
+
+```bash
+bash tools/pav_setup.sh
+```
+
+O script tenta SSH em PAV1 (`172.17.36.210`) e PAV2 (`172.17.36.211`) com senhas comuns
+e executa `set interface te-1/1/49 up-mode true` via CLI XorPlus.
+
+**Se SSH falhar**, acesse manualmente via console ou painel:
+```
+ssh admin@172.17.36.210    (PAV1)
+configure
+set interface te-1/1/49 up-mode true
+set interface te-1/1/50 up-mode true
+commit
+```
+
+---
+
+### PASSO 5 — Configurar roteamento em DC5 e DC6
+
+DC5 (`10.0.0.2/24`) e DC6 (`10.0.1.2/24`) estão em sub-redes diferentes.
+É preciso adicionar rotas estáticas em ambos.
+
+```bash
+# Tentativas de SSH (senha conhecida: waldman ou outra)
+ssh sdn@172.17.36.208    # DC5
+ssh sdn@172.17.36.214    # DC6
+```
+
+Após conectar em **DC5**:
+```bash
+sudo ip route add 10.0.1.0/24 via 10.0.0.1 dev enp1s0
+# Se não houver gateway: ip route add 10.0.1.2/32 dev enp1s0
+```
+
+Após conectar em **DC6**:
+```bash
+sudo ip route add 10.0.0.0/24 via 10.0.1.1 dev enp1s0
+# Se não houver gateway: ip route add 10.0.0.2/32 dev enp1s0
+```
+
+**Alternativa mais simples:** mudar DC6 para a mesma sub-rede de DC5 (`10.0.0.3/24`).
+
+---
+
+### PASSO 6 — Testar ping
+
+```bash
+# No DC5:
+ping -c 4 10.0.1.2
+
+# Ou do optinet com traceroute para diagnóstico:
+traceroute -n 10.0.1.2 -s 10.0.0.2
+```
+
+Sequência de eventos esperada no primeiro ping:
+1. DC5 gera ARP → PAV1 recebe → ONOS aprende MAC de DC5
+2. ONOS instala flow em PAV1 (in=porta49, out=porta51) e PAV2 (in=porta50, out=porta49)
+3. ARP chega em DC6 → DC6 responde → ONOS aprende MAC de DC6
+4. Flows bidirecional instalados → pings subsequentes fluem direto
+
+---
+
+### Diagnóstico rápido de problemas
+
+| Sintoma | Causa provável | Solução |
+|---|---|---|
+| LOS/BDI nos transponders | Cross-connects apagados pelo ONOS | `bash tools/fix_lab.sh` |
+| LOS nos transponders mas xconn OK | T100DCT#27 em C24 (não C28) | `bash tools/TailEndController/run_set_channel.sh` ou acesso físico |
+| 0 hosts no ONOS | `up-mode=false` nas portas dos PAVs | `bash tools/pav_setup.sh` |
+| Ping falha com "No route to host" | Rotas não configuradas em DC5/DC6 | Passos 5 acima |
+| OXC2 no ONOS (4 devices) | `setup_onos_lab.sh` antigo ou `oxc2-display.json` aplicado | `bash tools/fix_lab.sh` |
+| `fix_lab.sh` não encontrado | Branch errada (`fix/lambda-query-guava`) | `git checkout main && git pull` |
+
+---
+
 ## Dispositivos no ONOS (3 gerenciados + OXC2 externo)
 
 | Device ID | Tipo | Status | IP |
@@ -206,17 +360,33 @@ python3 tools/scan_oxc2_ports.py
 
 ---
 
-## Canal C28 — Configuração do T100DCT#27 (PENDENTE)
+## Canal C28 — Configuração do T100DCT#27
 
-Ambos os transponders precisam estar no **canal C28 (1554.94 nm / 193.4 THz)** para que o
-link coerente faça lock. Atualmente T100DCT#2 está em C28 e T100DCT#27 está em **C24 (1551.72 nm)**.
+Ambos os transponders precisam estar no **canal C28 (1554.94 nm / 193.8 THz)** para que o
+link coerente faça lock. T100DCT#2 já está em C28. T100DCT#27 tem C24 salvo como padrão
+e reverte para C24 após reinicializações.
 
-### Tentativa automática
+### Método correto (via SDK Padtec — Java 18)
 
 ```bash
-python3 tools/set_padtec_channel.py          # testa SSH + REST + ONOS intent
-python3 tools/set_padtec_channel.py --check  # apenas mostra canal atual
+bash tools/TailEndController/run_set_channel.sh
+# Para um transponder específico:
+bash tools/TailEndController/run_set_channel.sh "T100DCT-4GTT2L#27" C28
 ```
+
+> **Por que esse script?** O SDK Padtec usa classes em `Outros/TailEndController/lib/` e `br/`
+> que **não estão no git** (são binários locais). O script copia `SetChannelC28.java` para
+> aquela pasta, compila de lá (onde o compilador encontra as dependências) e executa.
+> Compilar de outro diretório resulta em `package br.com.padtec.v3.data.ne does not exist`.
+
+### Se o comando PPMv3 não funcionar
+
+O método `setChannel()` do SDK está marcado como `// NOT WORKING` no código original.
+Alternativas em ordem de preferência:
+
+1. **Acesso físico** ao painel frontal do T100DCT#27 (mais confiável, persiste após reboot)
+2. **SSH ao supervisor**: `bash tools/ssh_padtec.sh`
+3. **Verificação apenas**: `python3 tools/set_padtec_channel.py --check`
 
 ### SSH ao supervisor Padtec
 
