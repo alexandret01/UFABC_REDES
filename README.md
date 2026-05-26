@@ -108,8 +108,8 @@ Após reinicializações, o equipamento volta ao canal salvo (C24 por padrão).
 bash tools/TailEndController/run_set_channel.sh
 ```
 
-O script copia o fonte para `Outros/TailEndController/` (onde estão os JARs do SDK),
-compila, executa e limpa. Tenta setar C28 via PPMv3.
+O script compila e executa `SetChannelC28.java` a partir de `tools/TailEndController/`
+(onde residem os JARs do SDK Padtec — arquivos locais **não versionados**). Tenta setar C28 via PPMv3.
 
 **Se o comando PPMv3 não funcionar** (setChannel marcado como "NOT WORKING" no SDK):
 - Acesse **fisicamente o painel frontal do T100DCT#27** e mude o canal para C28.
@@ -123,71 +123,97 @@ bash tools/check_lab.sh
 
 ---
 
-### PASSO 4 — Habilitar portas dos switches PAV1/PAV2
+### PASSO 4 — Instalar flows OpenFlow explícitos nos PAVs
 
 A porta `te-1/1/49` (onde DC5/DC6 se conectam) tem `up-mode="false"` por padrão.
-Com isso, o ONOS não vê o tráfego dos servidores e não aprende os hosts.
+Com isso, o ONOS não entrega packet-in e não aprende hosts. Solução: instalar
+**flows permanentes** (prioridade 40000) que bridgeiam as portas direto, sem depender
+de host discovery.
 
 ```bash
-bash tools/pav_setup.sh
+bash tools/install_pav_flows.sh
 ```
 
-O script tenta SSH em PAV1 (`172.17.36.210`) e PAV2 (`172.17.36.211`) com senhas comuns
-e executa `set interface te-1/1/49 up-mode true` via CLI XorPlus.
+Flows instalados:
+- PAV1: `in=49 → out=51` e `in=51 → out=49` (DC5 ↔ T100DCT#2)
+- PAV2: `in=49 → out=50` e `in=50 → out=49` (DC6 ↔ T100DCT#27)
 
-**Se SSH falhar**, acesse manualmente via console ou painel:
+Verifique se os flows estão `ADDED` (não `PENDING_ADD`):
+```bash
+curl -s -u onos:rocks http://localhost:8181/onos/v1/flows/of:5e3ec454441280b9 | \
+  python3 -c "import sys,json; [print(f['state'],f.get('selector')) for f in json.load(sys.stdin)['flows'] if f['priority']==40000]"
 ```
-ssh admin@172.17.36.210    (PAV1)
-configure
-set interface te-1/1/49 up-mode true
-set interface te-1/1/50 up-mode true
-commit
-```
+
+Para remover os flows: `bash tools/install_pav_flows.sh --delete`
+
+> **Nota:** se quiser tentar habilitar `up-mode=true` no switch em vez de flows explícitos:
+> `bash tools/pav_setup.sh` — mas as senhas SSH do PAV podem não estar disponíveis.
 
 ---
 
-### PASSO 5 — Configurar roteamento em DC5 e DC6
+### PASSO 5 — Configurar IPs e rotas em DC5 e DC6
 
-DC5 (`10.0.0.2/24`) e DC6 (`10.0.1.2/24`) estão em sub-redes diferentes.
-É preciso adicionar rotas estáticas em ambos.
+DC5 (`10.0.0.2/24`) e DC6 (`10.0.1.2/24`) estão em sub-redes diferentes mas conectadas
+via ponte L2 transparente (PAV1:51 ↔ PAV2:50 via transponders e OXC2). É preciso:
+1. Garantir que `enp1s0` em cada servidor tem o IP correto
+2. Adicionar rota estática `via dev enp1s0` (sem gateway — bridge L2)
 
 ```bash
-# Tentativas de SSH (senha conhecida: waldman ou outra)
-ssh sdn@172.17.36.208    # DC5
-ssh sdn@172.17.36.214    # DC6
+bash tools/setup_dc_hosts.sh          # configura IPs e rotas automaticamente
+bash tools/setup_dc_hosts.sh --status # só verifica (não altera)
+bash tools/setup_dc_hosts.sh --test   # configura + testa ping
 ```
 
-Após conectar em **DC5**:
+O script usa `ssh jaquison@<host>` com senha `jaquison123`.
+Se `sshpass` não estiver instalado: `sudo apt-get install sshpass`
+
+**Comandos manuais** (se o script falhar):
 ```bash
-sudo ip route add 10.0.1.0/24 via 10.0.0.1 dev enp1s0
-# Se não houver gateway: ip route add 10.0.1.2/32 dev enp1s0
+# DC5 (172.17.36.208):
+ssh jaquison@172.17.36.208   # senha: jaquison123
+sudo ip addr add 10.0.0.2/24 dev enp1s0
+sudo ip link set enp1s0 up
+sudo ip route add 10.0.1.0/24 dev enp1s0   # sem gateway — bridge L2
+
+# DC6 (172.17.36.214):
+ssh jaquison@172.17.36.214   # senha: jaquison123
+sudo ip addr add 10.0.1.2/24 dev enp1s0
+sudo ip link set enp1s0 up
+sudo ip route add 10.0.0.0/24 dev enp1s0   # sem gateway — bridge L2
 ```
 
-Após conectar em **DC6**:
-```bash
-sudo ip route add 10.0.0.0/24 via 10.0.1.1 dev enp1s0
-# Se não houver gateway: ip route add 10.0.0.2/32 dev enp1s0
-```
-
-**Alternativa mais simples:** mudar DC6 para a mesma sub-rede de DC5 (`10.0.0.3/24`).
+> **Por que sem gateway?** Os flows OpenFlow criam uma bridge L2 transparente entre
+> PAV1:49 e PAV2:49. Logo, 10.0.0.2 e 10.0.1.2 estão no mesmo domínio L2 mesmo sendo
+> sub-redes diferentes. O ARP de DC5 por 10.0.1.2 atravessa o caminho óptico e chega em DC6.
 
 ---
 
 ### PASSO 6 — Testar ping
 
 ```bash
-# No DC5:
-ping -c 4 10.0.1.2
-
-# Ou do optinet com traceroute para diagnóstico:
-traceroute -n 10.0.1.2 -s 10.0.0.2
+bash tools/setup_dc_hosts.sh --test
 ```
 
-Sequência de eventos esperada no primeiro ping:
-1. DC5 gera ARP → PAV1 recebe → ONOS aprende MAC de DC5
-2. ONOS instala flow em PAV1 (in=porta49, out=porta51) e PAV2 (in=porta50, out=porta49)
-3. ARP chega em DC6 → DC6 responde → ONOS aprende MAC de DC6
-4. Flows bidirecional instalados → pings subsequentes fluem direto
+Ou manualmente no DC5:
+```bash
+ssh jaquison@172.17.36.208   # senha: jaquison123
+ping -c 4 -I enp1s0 10.0.1.2
+```
+
+Para diagnóstico, capture ARP em DC6 enquanto pinga de DC5:
+```bash
+# Terminal 1 — DC6:
+ssh jaquison@172.17.36.214
+sudo tcpdump -i enp1s0 -n arp
+
+# Terminal 2 — DC5:
+ssh jaquison@172.17.36.208
+ping -c 2 -I enp1s0 10.0.1.2
+```
+
+Se ARP chegar em DC6 mas não houver reply: `sudo ip addr add 10.0.1.2/24 dev enp1s0`
+Se ARP **não** chegar em DC6: verifique flows (`bash tools/install_pav_flows.sh`) e
+caminho óptico (`bash tools/check_lab.sh`).
 
 ---
 
@@ -198,7 +224,8 @@ Sequência de eventos esperada no primeiro ping:
 | LOS/BDI nos transponders | Cross-connects apagados pelo ONOS | `bash tools/fix_lab.sh` |
 | LOS nos transponders mas xconn OK | T100DCT#27 em C24 (não C28) | `bash tools/TailEndController/run_set_channel.sh` ou acesso físico |
 | 0 hosts no ONOS | `up-mode=false` nas portas dos PAVs | `bash tools/pav_setup.sh` |
-| Ping falha com "No route to host" | Rotas não configuradas em DC5/DC6 | Passos 5 acima |
+| Ping falha com "No route to host" | Rotas não configuradas em DC5/DC6 | `bash tools/setup_dc_hosts.sh` |
+| ARP sai de DC5 mas sem resposta | DC6 sem IP em enp1s0 ou flows ausentes | `bash tools/setup_dc_hosts.sh` e verificar `check_lab.sh` |
 | OXC2 no ONOS (4 devices) | `setup_onos_lab.sh` antigo ou `oxc2-display.json` aplicado | `bash tools/fix_lab.sh` |
 | `fix_lab.sh` não encontrado | Branch errada (`fix/lambda-query-guava`) | `git checkout main && git pull` |
 
