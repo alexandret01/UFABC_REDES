@@ -52,7 +52,6 @@ APPS=(
   "org.onosproject.openflow"
   "org.onosproject.proxyarp"
   "org.onosproject.layout"
-  "org.onosproject.fwd"
   "org.onosproject.openflow-base"
   "org.onosproject.openflow-message"
   "org.onosproject.ofagent"
@@ -74,6 +73,15 @@ APPS=(
 for app in "${APPS[@]}"; do
   curl -sS -X POST -u "$AUTH" "http://$ONOS_IP:8181/onos/v1/applications/$app/active" > /dev/null
 done
+
+# Garantir que reactive forwarding (fwd) está DESATIVADO.
+# Com fwd ativo, o ONOS intercepta todos os pacotes e instala flows reativos nos
+# PAVs, sobrescrevendo / conflitando com os flows explícitos (prioridade 40000)
+# que bridgeiam DC5↔DC6 via caminho óptico.
+echo "  -> Desativando org.onosproject.fwd (reactive forwarding)..."
+curl -sS -X DELETE -u "$AUTH" \
+     "http://$ONOS_IP:8181/onos/v1/applications/org.onosproject.fwd/active" > /dev/null 2>&1
+echo "  -> fwd desativado. Flows nos PAVs controlados exclusivamente por install_pav_flows.sh."
 
 # OXC1 (172.17.36.21) — com defeito, mas registrado no ONOS (5 dispositivos na topologia)
 if [ -f "tools/netconf-cfg1.json" ]; then
@@ -118,12 +126,12 @@ fi
 if [ -f "tools/keepalive_cross.py" ]; then
     nohup python3 tools/keepalive_cross.py > /tmp/keepalive_cross.log 2>&1 &
     KEEPALIVE_PID=$!
-    echo "  -> Cross-connect keepalive iniciado (PID: $KEEPALIVE_PID). Pares: 1→13, 5→9."
+    echo "  -> Cross-connect keepalive iniciado (PID: $KEEPALIVE_PID). Pares: 1→13, 2→11, 3→10, 5→9, 6→15, 7→14."
     echo "     Log: /tmp/keepalive_cross.log"
     sleep 2  # aguarda primeira aplicação
 elif [ -f "tools/add_cross_rest.py" ]; then
     python3 tools/add_cross_rest.py > /dev/null
-    echo "  -> Cross-connects criados no OXC2 (1→13 e 5→9). OXC1 fora de uso."
+    echo "  -> Cross-connects criados no OXC2 (1→13, 2→11, 3→10, 5→9, 6→15, 7→14). OXC1 fora de uso."
     echo "  [AVISO] Sem keepalive — os pares podem desaparecer em ~30s."
 fi
 

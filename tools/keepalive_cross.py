@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-keepalive_cross.py — Re-aplica cross-connects no OXC2 a cada 20s (workaround enquanto
+keepalive_cross.py — Re-aplica cross-connects no OXC2 a cada 60s (workaround enquanto
 o problema de persistência não é resolvido).
 
 Uso:
@@ -8,8 +8,12 @@ Uso:
     python3 tools/keepalive_cross.py --once   # aplica uma vez e sai
 
 Cross-connects alvo (OXC2 / 172.17.36.22):
-    ingress 1 → egress 13   (T100DCT#2 TX  → T100DCT#27 RX)
-    ingress 5 → egress 9    (T100DCT#27 TX → T100DCT#2  RX)
+    ingress 1 → egress 13
+    ingress 2 → egress 11
+    ingress 3 → egress 10
+    ingress 5 → egress 9
+    ingress 6 → egress 15
+    ingress 7 → egress 14
 """
 
 import requests
@@ -27,7 +31,11 @@ HDR   = {
 }
 PAIRS = {"pair": [
     {"ingress": 1, "egress": 13},
-    {"ingress": 5, "egress": 9}
+    {"ingress": 2, "egress": 11},
+    {"ingress": 3, "egress": 10},
+    {"ingress": 5, "egress": 9},
+    {"ingress": 6, "egress": 15},
+    {"ingress": 7, "egress": 14},
 ]}
 INTERVAL = 60  # segundos entre re-aplicações (PUT persiste; 60s é suficiente)
 
@@ -57,7 +65,7 @@ ONCE = "--once" in sys.argv
 print("=" * 55)
 print("  OXC2 Cross-Connect Keepalive")
 print(f"  OXC2: {BASE}")
-print(f"  Pares: 1→13, 5→9")
+print(f"  Pares: 1→13, 2→11, 3→10, 5→9, 6→15, 7→14")
 print("=" * 55)
 
 iteration = 0

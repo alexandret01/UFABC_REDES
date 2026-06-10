@@ -73,6 +73,18 @@ except Exception as e:
         echo "  Transpond. : ✗ Agente TCP não responde em $AGENT_HOST:$AGENT_PORT"
     fi
 
+    # ── ONOS fwd app ──────────────────────────────────────────────
+    FWD_STATE=$(curl -s -u "$AUTH" "$ONOS/onos/v1/applications/org.onosproject.fwd" 2>/dev/null | \
+        python3 -c "import sys,json; print(json.load(sys.stdin).get('state','?'))" 2>/dev/null)
+    if [ "$FWD_STATE" = "ACTIVE" ]; then
+        echo "  fwd app    : ⚠️  ATIVO — vai sobrescrever flows dos PAVs!"
+        echo "               Execute: bash tools/fix_lab.sh"
+    elif [ "$FWD_STATE" = "INSTALLED" ] || [ "$FWD_STATE" = "RESOLVED" ]; then
+        echo "  fwd app    : ✓ inativo ($FWD_STATE)"
+    else
+        echo "  fwd app    : ? estado=$FWD_STATE"
+    fi
+
     # ── ONOS devices ──────────────────────────────────────────────
     DEVICES=$(curl -s -u "$AUTH" "$ONOS/onos/v1/devices" 2>/dev/null)
     if [ -n "$DEVICES" ]; then

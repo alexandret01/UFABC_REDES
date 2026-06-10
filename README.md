@@ -28,10 +28,14 @@ Padtec porta 1                          Padtec porta 2
     ▼                                            ▼
 OXC2/Polatis porta 1 (ingress)          OXC2/Polatis porta 5 (ingress)
     │                                            │
-    └──── cross-connect 1→13 ────────────────────┘ (TX do #2 → RX do #27)
-    └──── cross-connect 5→9  ────────────────────┘ (TX do #27 → RX do #2)
+    └──── cross-connect 1→13 ────────────────────┘
+    └──── cross-connect 2→11 ────────────────────┘
+    └──── cross-connect 3→10 ────────────────────┘
+    └──── cross-connect 5→9  ────────────────────┘
+    └──── cross-connect 6→15 ────────────────────┘
+    └──── cross-connect 7→14 ────────────────────┘
     │                                            │
-OXC2/Polatis porta 13 (egress)          OXC2/Polatis porta 9 (egress)
+OXC2/Polatis portas 13,11,10 (egress)   OXC2/Polatis portas 9,15,14 (egress)
     │                                            │
     └──────── RX do T100DCT#27 ◄────────────────┘
     └──────── RX do T100DCT#2  ◄────────────────┘
@@ -44,7 +48,7 @@ OXC1 (Polatis)    : 172.17.36.21 — COM DEFEITO (credenciais NETCONF desconheci
 ### Fluxo de dados completo
 ```
 DC5 → PAV1 → Padtec T100DCT#2 (cliente) → Padtec T100DCT#2 (WDM)
-    → OXC2 (cross-connect 1→13 e 5→9)
+    → OXC2 (cross-connects: 1→13, 2→11, 3→10, 5→9, 6→15, 7→14)
     → Padtec T100DCT#27 (WDM) → Padtec T100DCT#27 (cliente) → PAV2 → DC6
 ```
 
@@ -133,6 +137,10 @@ de host discovery.
 ```bash
 bash tools/install_pav_flows.sh
 ```
+
+O script desativa automaticamente `org.onosproject.fwd` antes de instalar os flows.
+Isso é **essencial**: com o reactive forwarding ativo, o ONOS intercepta packet-ins e
+instala flows reativos nos PAVs que conflitam / sobrescrevem os flows explícitos.
 
 Flows instalados:
 - PAV1: `in=49 → out=51` e `in=51 → out=49` (DC5 ↔ T100DCT#2)
@@ -227,6 +235,7 @@ caminho óptico (`bash tools/check_lab.sh`).
 | Ping falha com "No route to host" | Rotas não configuradas em DC5/DC6 | `bash tools/setup_dc_hosts.sh` |
 | ARP sai de DC5 mas sem resposta | DC6 sem IP em enp1s0 ou flows ausentes | `bash tools/setup_dc_hosts.sh` e verificar `check_lab.sh` |
 | OXC2 no ONOS (4 devices) | `setup_onos_lab.sh` antigo ou `oxc2-display.json` aplicado | `bash tools/fix_lab.sh` |
+| Flows dos PAVs somem / ping para de funcionar | `org.onosproject.fwd` ativo sobrescrevendo flows | `bash tools/fix_lab.sh` (desativa fwd) |
 | `fix_lab.sh` não encontrado | Branch errada (`fix/lambda-query-guava`) | `git checkout main && git pull` |
 
 ---

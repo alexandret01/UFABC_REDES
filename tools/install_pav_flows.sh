@@ -94,6 +94,15 @@ if [ "$MODE" = "--delete" ]; then
     exit 0
 fi
 
+# Desativa fwd antes de instalar flows (fwd instala flows reativos que conflitam)
+echo ""
+echo "[Pre] Desativando org.onosproject.fwd (reactive forwarding)..."
+FWD_CODE=$(curl -sS -o /dev/null -w "%{http_code}" -X DELETE -u "$AUTH" \
+     "$ONOS/onos/v1/applications/org.onosproject.fwd/active" 2>/dev/null)
+[ "$FWD_CODE" = "204" ] || [ "$FWD_CODE" = "200" ] || [ "$FWD_CODE" = "404" ] \
+    && echo "  ✓ fwd inativo (HTTP $FWD_CODE)" \
+    || echo "  ⚠ fwd: HTTP $FWD_CODE"
+
 echo ""
 echo "[PAV1] Instalando flows bridge porta $DC_PORT ↔ porta $PAV1_OPT_PORT ..."
 install_flow "$PAV1" "$DC_PORT"       "$PAV1_OPT_PORT" "PAV1: DC5 → T100DCT#2"
