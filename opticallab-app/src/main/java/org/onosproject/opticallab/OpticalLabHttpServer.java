@@ -342,6 +342,7 @@ public class OpticalLabHttpServer {
 "        <th>RX WDM (dBm)</th><th>TX WDM (dBm)</th>\n" +
 "        <th>RX Client</th><th>TX Client</th>\n" +
 "        <th>Gain (dB)</th><th>LOS</th><th>BDI</th><th>FEC Rate</th>\n" +
+"        <th>BIP8 Rate</th><th>BEI Rate</th><th>LOF</th>\n" +
 "      </tr></thead>\n" +
 "      <tbody></tbody>\n" +
 "    </table>\n" +
@@ -363,11 +364,18 @@ public class OpticalLabHttpServer {
 "const API='http://'+window.location.hostname+':9191';\n" +
 "async function fetchJson(p){const r=await fetch(API+p);if(!r.ok)throw new Error(r.status);return r.json();}\n" +
 "function fmtPow(v){return v?parseFloat(v).toFixed(2)+' dBm':'-';}\n" +
-"function fmtLos(v){if(v===undefined||v===null||v==='')return '-';\n" +
-"return String(v).toLowerCase()==='true'?'<span class=\"badge badge-err\">LOS</span>':'<span class=\"badge badge-ok\">OK</span>';}\n" +
-"function fmtBool(v){if(v===undefined||v===null||v==='')return '-';\n" +
-"return String(v).toLowerCase()==='true'?'<span class=\"badge badge-err\">SIM</span>':'<span class=\"badge badge-ok\">NAO</span>';}\n" +
-"function fmtFec(v){return v?parseFloat(v).toExponential(2):'-';}\n" +
+"function fmtLos(v){\n" +
+"  if(v===undefined||v===null||v==='')return '-';\n" +
+"  const s=String(v).toLowerCase();\n" +
+"  const active=s==='true'||s==='sim'||s==='1';\n" +
+"  return active?'<span class=\"badge badge-err\">LOS</span>':'<span class=\"badge badge-ok\">OK</span>';}\n" +
+"function fmtBool(v){\n" +
+"  if(v===undefined||v===null||v==='')return '-';\n" +
+"  const s=String(v).toLowerCase();\n" +
+"  const active=s==='true'||s==='sim'||s==='1';\n" +
+"  return active?'<span class=\"badge badge-err\">SIM</span>':'<span class=\"badge badge-ok\">NAO</span>';}\n" +
+"function fmtFec(v){if(!v||v==='-')return '-';const n=parseFloat(v);return isNaN(n)?'-':n.toExponential(2);}\n" +
+"function fmtRate(v){if(!v||v==='-')return '-';const n=parseFloat(v);return isNaN(n)?'-':n.toExponential(2);}\n" +
 "function updateStatus(dp){\n" +
 "  document.getElementById('status-badge').textContent=dp.padtecAvailable?'Padtec ONLINE':'Padtec OFFLINE';\n" +
 "  document.getElementById('status-badge').style.background=dp.padtecAvailable?'#1a3a2a':'#3a1a1a';\n" +
@@ -396,7 +404,10 @@ public class OpticalLabHttpServer {
 "      <td>${fmtPow(d.inputPowerWDM||d.inputPower)}</td><td>${fmtPow(d.outputPowerWDM||d.outputPower)}</td>\n" +
 "      <td>${fmtPow(d.inputPowerClient)}</td><td>${fmtPow(d.outputPowerClient)}</td>\n" +
 "      <td>${d.gain?parseFloat(d.gain).toFixed(2)+' dB':'-'}</td>\n" +
-"      <td>${fmtLos(d.isLOS)}</td><td>${fmtBool(d.isBDI)}</td><td>${fmtFec(d.fecRate)}</td>`;\n" +
+"      <td>${fmtLos(d.isLOS!==undefined?d.isLOS:d.LOS)}</td><td>${fmtBool(d.isBDI!==undefined?d.isBDI:d.BDI)}</td><td>${fmtFec(d.fecRate)}</td>\n" +
+"      <td>${fmtRate(d.bip8Rate!==undefined?d.bip8Rate:d.BIP8Rate)}</td>\n" +
+"      <td>${fmtRate(d.beiRate!==undefined?d.beiRate:(d.BEIrate!==undefined?d.BEIrate:d.beirate))}</td>\n" +
+"      <td>${fmtBool(d.isLOF!==undefined?d.isLOF:d.LOF)}</td>`;\n" +
 "    dtbody.appendChild(tr);\n" +
 "  }\n" +
 "}\n" +

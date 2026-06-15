@@ -69,10 +69,13 @@
       <plugin>
         <artifactId>maven-compiler-plugin</artifactId>
         <version>3.8.1</version>
-        <configuration>
+        <configuration combine.children="override">
           <source>11</source>
           <target>11</target>
           <release>11</release>
+          <!-- Desativa error-prone (versao 2.3.4 nao suporta Java 21) -->
+          <annotationProcessorPaths combine.self="override"/>
+          <compilerArgs combine.self="override"/>
         </configuration>
       </plugin>
 
@@ -94,7 +97,7 @@
       <plugin>
         <groupId>org.apache.felix</groupId>
         <artifactId>maven-bundle-plugin</artifactId>
-        <version>4.2.1</version>
+        <version>5.1.9</version>
         <extensions>true</extensions>
         <configuration>
           <instructions>
