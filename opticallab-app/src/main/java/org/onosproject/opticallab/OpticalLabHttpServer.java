@@ -1,6 +1,5 @@
 package org.onosproject.opticallab;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -11,6 +10,7 @@ import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -33,8 +33,6 @@ public class OpticalLabHttpServer {
 
     private static final Logger log = LoggerFactory.getLogger(OpticalLabHttpServer.class);
     static final int PORT = 9191;
-
-    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private volatile boolean  running = false;
     private ServerSocket      serverSocket;
@@ -142,8 +140,7 @@ public class OpticalLabHttpServer {
     private String statusJson() {
         OpticalLabApp app = OpticalLabApp.getInstance();
         if (app == null || app.getStore().getLatest() == null) return "{}";
-        try { return MAPPER.writeValueAsString(app.getStore().getLatest().toMap()); }
-        catch (Exception e) { return "{\"error\":\"" + esc(e.getMessage()) + "\"}"; }
+        return mapToJson(app.getStore().getLatest().toMap());
     }
 
     private String historyJson(String query) {
@@ -158,14 +155,52 @@ public class OpticalLabHttpServer {
         if (limit != null && limit > 0 && limit < history.size()) {
             history = history.subList(history.size() - limit, history.size());
         }
-        try {
-            StringBuilder sb = new StringBuilder("[");
-            for (int i = 0; i < history.size(); i++) {
-                if (i > 0) sb.append(",");
-                sb.append(MAPPER.writeValueAsString(history.get(i).toMap()));
+        StringBuilder sb = new StringBuilder("[");
+        for (int i = 0; i < history.size(); i++) {
+            if (i > 0) sb.append(",");
+            sb.append(mapToJson(history.get(i).toMap()));
+        }
+        return sb.append("]").toString();
+    }
+
+    /** Serializa Map<String,Object> para JSON sem dependências externas. */
+    @SuppressWarnings("unchecked")
+    private static String mapToJson(Map<String, Object> map) {
+        if (map == null) return "{}";
+        StringBuilder sb = new StringBuilder("{");
+        boolean first = true;
+        for (Map.Entry<String, Object> e : map.entrySet()) {
+            if (!first) sb.append(",");
+            first = false;
+            sb.append("\"").append(esc(e.getKey())).append("\":");
+            Object v = e.getValue();
+            if (v == null)                          sb.append("null");
+            else if (v instanceof Boolean)          sb.append(v);
+            else if (v instanceof Number)           sb.append(v);
+            else if (v instanceof List)             sb.append(listToJson((List<?>) v));
+            else if (v instanceof Map)              sb.append(mapToJson((Map<String,Object>) v));
+            else                                    sb.append("\"").append(esc(v.toString())).append("\"");
+        }
+        return sb.append("}").toString();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static String listToJson(List<?> list) {
+        StringBuilder sb = new StringBuilder("[");
+        for (int i = 0; i < list.size(); i++) {
+            if (i > 0) sb.append(",");
+            Object v = list.get(i);
+            if (v == null)        sb.append("null");
+            else if (v instanceof int[]) {
+                int[] arr = (int[]) v;
+                sb.append("{\"ingress\":").append(arr[0]).append(",\"egress\":").append(arr[1]).append("}");
             }
-            return sb.append("]").toString();
-        } catch (Exception e) { return "[]"; }
+            else if (v instanceof Map)  sb.append(mapToJson((Map<String,Object>) v));
+            else if (v instanceof List) sb.append(listToJson((List<?>) v));
+            else if (v instanceof Number || v instanceof Boolean) sb.append(v);
+            else sb.append("\"").append(esc(v.toString())).append("\"");
+        }
+        return sb.append("]").toString();
     }
 
     private String csvData() {
