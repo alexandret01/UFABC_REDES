@@ -130,6 +130,7 @@
               org.onosproject.*;version="[2.7,4.0)",
               org.onlab.*;version="[2.7,4.0)",
               javax.ws.rs.*,
+              com.sun.jersey.spi.container.servlet,
               com.fasterxml.jackson.*,
               org.slf4j.*,
               org.osgi.framework.*,
