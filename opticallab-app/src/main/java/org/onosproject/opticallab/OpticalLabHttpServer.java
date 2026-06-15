@@ -348,9 +348,9 @@ public class OpticalLabHttpServer {
 "    </table>\n" +
 "  </div>\n" +
 "  <div class='card full-width'>\n" +
-"    <h2>OXC2 Portas — Potencia e Atenuacao <span id='oxc2-port-count' style='color:var(--muted);font-size:11px'></span></h2>\n" +
+"    <h2>OXC2 Portas <span id='oxc2-port-count' style='color:var(--muted);font-size:11px'></span></h2>\n" +
 "    <table id='oxc2-ports-table'>\n" +
-"      <thead><tr><th>Porta</th><th>Atenuacao (dB)</th><th>Potencia Atual (dBm)</th><th>Estado</th></tr></thead>\n" +
+"      <thead><tr><th>Porta</th><th>Status</th><th>Label</th><th>Peer Port (XConn)</th></tr></thead>\n" +
 "      <tbody></tbody>\n" +
 "    </table>\n" +
 "  </div>\n" +
@@ -448,33 +448,28 @@ public class OpticalLabHttpServer {
 "    document.getElementById('last-update').textContent=new Date().toLocaleTimeString();\n" +
 "  }catch(e){document.getElementById('status-badge').textContent='Erro de conexao';}\n" +
 "}\n" +
-"function fmtDb(v){return(v&&v!=='N/A')?parseFloat(v).toFixed(2)+' dB':'N/A';}\n" +
-"function fmtDbm(v){return(v&&v!=='N/A')?parseFloat(v).toFixed(2)+' dBm':'N/A';}\n" +
 "function updateOxc2Ports(dp){\n" +
 "  const tbody=document.querySelector('#oxc2-ports-table tbody');tbody.innerHTML='';\n" +
 "  const ports=dp.oxc2Ports||[];\n" +
 "  const countEl=document.getElementById('oxc2-port-count');\n" +
 "  if(ports.length===0){\n" +
 "    if(countEl)countEl.textContent='(sem dados)';\n" +
-"    tbody.innerHTML='<tr><td colspan=4 style=\"color:var(--muted);padding:8px\">OXC2 inacessivel ou sem portas — verifique conexao RESTCONF em 172.17.36.22:8008</td></tr>';\n" +
+"    tbody.innerHTML='<tr><td colspan=4 style=\"color:var(--muted);padding:8px\">OXC2 inacessivel — verifique RESTCONF em 172.17.36.22:8008</td></tr>';\n" +
 "    return;\n" +
 "  }\n" +
 "  if(countEl)countEl.textContent='('+ports.length+' portas)';\n" +
 "  for(const p of ports){\n" +
-"    const att=p.attenuation!=='N/A'?parseFloat(p.attenuation):null;\n" +
-"    const pwr=p.powerReading!=='N/A'?parseFloat(p.powerReading):null;\n" +
-"    // estado: potência < -30 dBm = sem sinal, atenuação > 10 dB = atenção\n" +
-"    let estadoBadge;\n" +
-"    if(pwr===null) estadoBadge='<span class=\"badge badge-warn\">SEM LEITURA</span>';\n" +
-"    else if(pwr<-30) estadoBadge='<span class=\"badge badge-err\">SEM SINAL</span>';\n" +
-"    else estadoBadge='<span class=\"badge badge-ok\">OK</span>';\n" +
-"    const attClass=att!==null&&att>10?'warn':'';\n" +
-"    const pwrClass=pwr!==null&&pwr>=-30?'ok':(pwr!==null?'err':'');\n" +
+"    const enabled=p.status==='ENABLED';\n" +
+"    const hasPeer=p.peerPort&&p.peerPort.trim()!=='';\n" +
+"    const statusBadge=enabled\n" +
+"      ?'<span class=\"badge badge-ok\">ENABLED</span>'\n" +
+"      :'<span class=\"badge badge-err\">DISABLED</span>';\n" +
+"    const peerCell=hasPeer\n" +
+"      ?`<span class=\"badge badge-ok\">→ porta ${p.peerPort}</span>`\n" +
+"      :'<span style=\"color:var(--muted)\">—</span>';\n" +
 "    const tr=document.createElement('tr');\n" +
-"    tr.innerHTML=`<td>${p.portId}</td>` +\n" +
-"      `<td class='${attClass}'>${fmtDb(p.attenuation)}</td>` +\n" +
-"      `<td class='${pwrClass}'>${fmtDbm(p.powerReading)}</td>` +\n" +
-"      `<td>${estadoBadge}</td>`;\n" +
+"    tr.innerHTML=`<td>${p.portId}</td><td>${statusBadge}</td>` +\n" +
+"      `<td style=\"color:var(--muted)\">${p.label||'—'}</td><td>${peerCell}</td>`;\n" +
 "    tbody.appendChild(tr);\n" +
 "  }\n" +
 "}\n" +
