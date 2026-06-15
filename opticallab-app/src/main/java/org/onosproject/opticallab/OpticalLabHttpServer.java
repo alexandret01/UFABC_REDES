@@ -22,12 +22,13 @@ import java.util.concurrent.Executors;
  * HttpService ou qualquer infraestrutura do Karaf/ONOS.
  *
  * Endpoints:
- *   GET /status         — snapshot atual (JSON)
- *   GET /history        — histórico (JSON, aceita ?limit=N)
- *   GET /dataset.csv    — dataset completo (CSV download)
- *   GET /info           — info do app (JSON)
- *   GET /ui             — dashboard HTML
- *   GET /               — redirect → /ui
+ *   GET /status           — snapshot atual (JSON)
+ *   GET /history          — histórico (JSON, aceita ?limit=N)
+ *   GET /dataset.csv      — dataset Padtec (CSV download)
+ *   GET /dataset-oxc2.csv — dataset OXC2 portas: potência e atenuação (CSV download)
+ *   GET /info             — info do app (JSON)
+ *   GET /ui               — dashboard HTML
+ *   GET /                 — redirect → /ui
  */
 public class OpticalLabHttpServer {
 
@@ -125,13 +126,14 @@ public class OpticalLabHttpServer {
 
     private Response route(String path, String query) {
         switch (path) {
-            case "/status":      return json(200, statusJson());
-            case "/history":     return json(200, historyJson(query));
-            case "/dataset.csv": return csv(csvData());
-            case "/info":        return json(200, infoJson());
-            case "/ui":          return html(buildDashboardHtml());
-            case "/":            return redirect("/ui");
-            default:             return text(404, "Not found");
+            case "/status":           return json(200, statusJson());
+            case "/history":          return json(200, historyJson(query));
+            case "/dataset.csv":      return csvFile("opticallab-dataset.csv",     csvData());
+            case "/dataset-oxc2.csv": return csvFile("opticallab-oxc2-ports.csv",  csvOxc2Data());
+            case "/info":             return json(200, infoJson());
+            case "/ui":               return html(buildDashboardHtml());
+            case "/":                 return redirect("/ui");
+            default:                  return text(404, "Not found");
         }
     }
 
@@ -208,6 +210,16 @@ public class OpticalLabHttpServer {
         return app == null ? "" : app.getStore().toCsvString();
     }
 
+    private String csvOxc2Data() {
+        OpticalLabApp app = OpticalLabApp.getInstance();
+        if (app == null) return DataPoint.csvOxc2Header();
+        StringBuilder sb = new StringBuilder(DataPoint.csvOxc2Header());
+        for (DataPoint dp : app.getStore().getHistory()) {
+            sb.append(dp.toCsvOxc2Rows());
+        }
+        return sb.toString();
+    }
+
     private String infoJson() {
         OpticalLabApp app = OpticalLabApp.getInstance();
         StringBuilder sb = new StringBuilder("{");
@@ -231,9 +243,9 @@ public class OpticalLabHttpServer {
     private static Response html(String body) {
         return new Response(200, "text/html; charset=UTF-8", null, null, bytes(body));
     }
-    private static Response csv(String body) {
+    private static Response csvFile(String filename, String body) {
         return new Response(200, "text/csv", null,
-                "attachment; filename=\"opticallab-dataset.csv\"", bytes(body));
+                "attachment; filename=\"" + filename + "\"", bytes(body));
     }
     private static Response text(int status, String body) {
         return new Response(status, "text/plain; charset=UTF-8", null, null, bytes(body));
@@ -320,7 +332,8 @@ public class OpticalLabHttpServer {
 "  <progress id='countdown' max='30' value='30'></progress>\n" +
 "  <span id='countdown-text'>30s</span>\n" +
 "  <button onclick='fetchAll()'>Atualizar agora</button>\n" +
-"  <button onclick='downloadCsv()'>Baixar Dataset CSV</button>\n" +
+"  <button onclick='downloadCsv()'>Dataset Padtec CSV</button>\n" +
+"  <button onclick='downloadOxc2Csv()'>Dataset OXC2 CSV</button>\n" +
 "</div>\n" +
 "<main>\n" +
 "  <div class='card'>\n" +
@@ -331,6 +344,13 @@ public class OpticalLabHttpServer {
 "    <h2>OXC2 Cross-Connects</h2>\n" +
 "    <table id='xconn-table'>\n" +
 "      <thead><tr><th>Ingress</th><th>Egress</th><th>Status</th></tr></thead>\n" +
+"      <tbody></tbody>\n" +
+"    </table>\n" +
+"  </div>\n" +
+"  <div class='card'>\n" +
+"    <h2>OXC2 Portas — Potencia e Atenuacao</h2>\n" +
+"    <table id='oxc2-ports-table'>\n" +
+"      <thead><tr><th>Porta</th><th>Atenuacao (dB)</th><th>Potencia (dBm)</th></tr></thead>\n" +
 "      <tbody></tbody>\n" +
 "    </table>\n" +
 "  </div>\n" +
@@ -423,11 +443,27 @@ public class OpticalLabHttpServer {
 "async function fetchAll(){\n" +
 "  try{\n" +
 "    const [dp,history]=await Promise.all([fetchJson('/status'),fetchJson('/history?limit=60')]);\n" +
-"    updateStatus(dp);updateHistory(history);\n" +
+"    updateStatus(dp);updateHistory(history);updateOxc2Ports(dp);\n" +
 "    document.getElementById('last-update').textContent=new Date().toLocaleTimeString();\n" +
 "  }catch(e){document.getElementById('status-badge').textContent='Erro de conexao';}\n" +
 "}\n" +
+"function fmtDb(v){return(v&&v!=='N/A')?parseFloat(v).toFixed(2)+' dB':'N/A';}\n" +
+"function fmtDbm(v){return(v&&v!=='N/A')?parseFloat(v).toFixed(2)+' dBm':'N/A';}\n" +
+"function updateOxc2Ports(dp){\n" +
+"  const tbody=document.querySelector('#oxc2-ports-table tbody');tbody.innerHTML='';\n" +
+"  const ports=dp.oxc2Ports||[];\n" +
+"  if(ports.length===0){\n" +
+"    tbody.innerHTML='<tr><td colspan=3 style=\"color:var(--muted)\">Sem dados (OXC2 inacessivel ou sem portas)</td></tr>';\n" +
+"    return;\n" +
+"  }\n" +
+"  for(const p of ports){\n" +
+"    const tr=document.createElement('tr');\n" +
+"    tr.innerHTML=`<td>${p.portId}</td><td>${fmtDb(p.attenuation)}</td><td>${fmtDbm(p.powerReading)}</td>`;\n" +
+"    tbody.appendChild(tr);\n" +
+"  }\n" +
+"}\n" +
 "function downloadCsv(){window.location.href=API+'/dataset.csv';}\n" +
+"function downloadOxc2Csv(){window.location.href=API+'/dataset-oxc2.csv';}\n" +
 "let timeLeft=30;\n" +
 "function tick(){timeLeft--;document.getElementById('countdown').value=timeLeft;\n" +
 "  document.getElementById('countdown-text').textContent=timeLeft+'s';\n" +
