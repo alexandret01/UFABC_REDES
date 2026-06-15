@@ -98,6 +98,14 @@
       <scope>provided</scope>
     </dependency>
 
+    <!-- Servlet API — exigida pelo jersey-servlet em tempo de compilação -->
+    <dependency>
+      <groupId>javax.servlet</groupId>
+      <artifactId>javax.servlet-api</artifactId>
+      <version>3.1.0</version>
+      <scope>provided</scope>
+    </dependency>
+
     <dependency>
       <groupId>org.slf4j</groupId>
       <artifactId>slf4j-api</artifactId>
