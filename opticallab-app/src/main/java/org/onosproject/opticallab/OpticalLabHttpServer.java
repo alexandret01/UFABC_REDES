@@ -341,8 +341,8 @@ public class OpticalLabHttpServer {
 "        <th>Nome</th><th>Tipo</th><th>Canal</th>\n" +
 "        <th>RX WDM (dBm)</th><th>TX WDM (dBm)</th>\n" +
 "        <th>RX Client</th><th>TX Client</th>\n" +
-"        <th>LOS</th><th>BDI</th><th>FEC Rate</th>\n" +
-"        <th>BIP8 Rate</th><th>BEI Rate</th><th>LOF</th>\n" +
+"        <th>FEC Rate</th><th>BIP8 Rate</th><th>BEI Rate</th>\n" +
+"        <th>LOS</th><th>LOF</th><th>BDI</th>\n" +
 "      </tr></thead>\n" +
 "      <tbody></tbody>\n" +
 "    </table>\n" +
@@ -398,10 +398,12 @@ public class OpticalLabHttpServer {
 "    tr.innerHTML=`<td>${d.neName||'-'}</td><td>${d.type||'-'}</td><td><b>${d.channel||'-'}</b></td>\n" +
 "      <td>${fmtPow(d.inputPowerWDM||d.inputPower)}</td><td>${fmtPow(d.outputPowerWDM||d.outputPower)}</td>\n" +
 "      <td>${fmtPow(d.inputPowerClient)}</td><td>${fmtPow(d.outputPowerClient)}</td>\n" +
-"      <td>${fmtBool(d.isLOS!==undefined?d.isLOS:d.LOS)}</td><td>${fmtBool(d.isBDI!==undefined?d.isBDI:d.BDI)}</td><td>${fmtFec(d.fecRate)}</td>\n" +
+"      <td>${fmtFec(d.fecRate)}</td>\n" +
 "      <td>${fmtRate(d.bip8Rate!==undefined?d.bip8Rate:d.BIP8Rate)}</td>\n" +
 "      <td>${fmtRate(d.beiRate!==undefined?d.beiRate:(d.BEIrate!==undefined?d.BEIrate:d.beirate))}</td>\n" +
-"      <td>${fmtBool(d.isLOF!==undefined?d.isLOF:d.LOF)}</td>`;\n" +
+"      <td>${fmtBool(d.isLOS!==undefined?d.isLOS:d.LOS)}</td>\n" +
+"      <td>${fmtBool(d.isLOF!==undefined?d.isLOF:d.LOF)}</td>\n" +
+"      <td>${fmtBool(d.isBDI!==undefined?d.isBDI:d.BDI)}</td>`;\n" +
 "    dtbody.appendChild(tr);\n" +
 "  }\n" +
 "}\n" +

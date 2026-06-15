@@ -60,8 +60,8 @@ public class DataPoint {
         return "timestamp,deviceName,type,channel,lambda," +
                "inputPower,outputPower,inputPowerWDM,outputPowerWDM," +
                "gain,powerInput,powerOutput,isAGC," +
+               "fecRate,fecErrors,bip8Rate,beiRate," +
                "isLOS,isLOF,isBDI,isClientLOS,isClientLOF," +
-               "fecRate,fecErrors," +
                "oxc2Pairs,pavFlowsAdded,lldpLinks\n";
     }
 
@@ -90,20 +90,22 @@ public class DataPoint {
             sb.append(escape(d.get("powerInput"))).append(',');
             sb.append(escape(d.get("powerOutput"))).append(',');
             sb.append(escape(d.get("isAGC"))).append(',');
+            sb.append(escape(d.get("fecRate"))).append(',');
+            sb.append(escape(d.get("fecErrors"))).append(',');
+            sb.append(escape(d.get("bip8Rate"))).append(',');
+            sb.append(escape(d.get("beiRate"))).append(',');
             sb.append(escape(d.get("isLOS"))).append(',');
             sb.append(escape(d.get("isLOF"))).append(',');
             sb.append(escape(d.get("isBDI"))).append(',');
             sb.append(escape(d.get("isClientLOS"))).append(',');
             sb.append(escape(d.get("isClientLOF"))).append(',');
-            sb.append(escape(d.get("fecRate"))).append(',');
-            sb.append(escape(d.get("fecErrors"))).append(',');
             sb.append('"').append(oxcPairs).append('"').append(',');
             sb.append(pavFlowsAdded).append(',');
             sb.append(lldpLinks).append('\n');
         }
         // Se não tiver devices, grava uma linha com context only
         if (devices.isEmpty()) {
-            sb.append(timestamp).append(",,,,,,,,,,,,,,,,,,,,");
+            sb.append(timestamp).append(",,,,,,,,,,,,,,,,,,,,,,");
             sb.append('"').append(oxcPairs).append('"').append(',');
             sb.append(pavFlowsAdded).append(',');
             sb.append(lldpLinks).append('\n');
