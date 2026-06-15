@@ -44,6 +44,15 @@ deploy() {
     echo "  Instalando app no ONOS..."
     echo "================================================================"
 
+    # Remove versão anterior se já existir (ONOS retorna 409 ao re-instalar mesma versão)
+    EXISTING=$(curl -sS -o /dev/null -w "%{http_code}" -u "$AUTH" \
+        "$ONOS/onos/v1/applications/$APP_NAME")
+    if [ "$EXISTING" = "200" ]; then
+        echo "  Removendo versão anterior..."
+        curl -sS -o /dev/null -X DELETE -u "$AUTH" "$ONOS/onos/v1/applications/$APP_NAME"
+        sleep 2
+    fi
+
     CODE=$(curl -sS -o /tmp/deploy_result.txt -w "%{http_code}" \
         -X POST \
         -H "content-type:application/octet-stream" \
