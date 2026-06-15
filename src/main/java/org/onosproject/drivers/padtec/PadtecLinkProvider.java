@@ -197,8 +197,7 @@ public class PadtecLinkProvider implements LinkProvider {
                     log.info("Link Padtec atualizado via netcfg: {} -> {} [{}]", src, dst, type);
                 }
             } else if (event.type() == NetworkConfigEvent.Type.CONFIG_REMOVED) {
-                providerService.linkVanished(key.src());
-                log.info("Link Padtec removido do netcfg: {}", key);
+                log.info("Config de link Padtec removida do netcfg: {} — link permanece ate o proximo restart", key);
             }
         }
     }
