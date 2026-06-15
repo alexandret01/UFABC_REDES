@@ -132,8 +132,7 @@
               org.onlab.*;version="[2.7,4.0)",
               javax.ws.rs.*,
               com.fasterxml.jackson.*,
-              com.sun.net.httpserver,
-              org.slf4j.*,
+org.slf4j.*,
               org.osgi.framework.*,
               *
             </Import-Package>
