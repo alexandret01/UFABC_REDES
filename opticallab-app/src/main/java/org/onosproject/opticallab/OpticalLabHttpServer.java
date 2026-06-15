@@ -350,7 +350,8 @@ public class OpticalLabHttpServer {
 "  <div class='card full-width'>\n" +
 "    <h2>OXC2 Portas <span id='oxc2-port-count' style='color:var(--muted);font-size:11px'></span></h2>\n" +
 "    <table id='oxc2-ports-table'>\n" +
-"      <thead><tr><th>Porta</th><th>Status</th><th>Label</th><th>Peer Port (XConn)</th></tr></thead>\n" +
+"      <thead><tr><th>Porta</th><th>Status</th><th>Label</th><th>Peer Port</th>" +
+"<th>Potência OPM (dBm)</th><th>Modo VOA</th><th>Atenuação (dB)</th></tr></thead>\n" +
 "      <tbody></tbody>\n" +
 "    </table>\n" +
 "  </div>\n" +
@@ -454,7 +455,7 @@ public class OpticalLabHttpServer {
 "  const countEl=document.getElementById('oxc2-port-count');\n" +
 "  if(ports.length===0){\n" +
 "    if(countEl)countEl.textContent='(sem dados)';\n" +
-"    tbody.innerHTML='<tr><td colspan=4 style=\"color:var(--muted);padding:8px\">OXC2 inacessivel — verifique RESTCONF em 172.17.36.22:8008</td></tr>';\n" +
+"    tbody.innerHTML='<tr><td colspan=7 style=\"color:var(--muted);padding:8px\">OXC2 inacessivel — verifique RESTCONF em 172.17.36.22:8008</td></tr>';\n" +
 "    return;\n" +
 "  }\n" +
 "  if(countEl)countEl.textContent='('+ports.length+' portas)';\n" +
@@ -467,9 +468,20 @@ public class OpticalLabHttpServer {
 "    const peerCell=hasPeer\n" +
 "      ?`<span class=\"badge badge-ok\">→ porta ${p.peerPort}</span>`\n" +
 "      :'<span style=\"color:var(--muted)\">—</span>';\n" +
+"    let powCell='<span style=\"color:var(--muted)\">—</span>';\n" +
+"    if(p.power){\n" +
+"      const pw=parseFloat(p.power);\n" +
+"      const cls=pw>-30?'ok':(pw>-45?'warn':'err');\n" +
+"      powCell=`<span class=\"${cls}\">${pw.toFixed(2)} dBm</span>`;\n" +
+"    }\n" +
+"    let voaMode=p.attenMode||'—';\n" +
+"    if(voaMode==='VOA_MODE_NONE')voaMode='<span style=\"color:var(--muted)\">NONE</span>';\n" +
+"    else if(voaMode==='VOA_MODE_ABSOLUTE')voaMode='<span class=\"warn\">ABSOLUTE</span>';\n" +
+"    const attenCell=p.attenLevel?`<span class=\"warn\">${parseFloat(p.attenLevel).toFixed(2)} dB</span>`:'<span style=\"color:var(--muted)\">—</span>';\n" +
 "    const tr=document.createElement('tr');\n" +
 "    tr.innerHTML=`<td>${p.portId}</td><td>${statusBadge}</td>` +\n" +
-"      `<td style=\"color:var(--muted)\">${p.label||'—'}</td><td>${peerCell}</td>`;\n" +
+"      `<td style=\"color:var(--muted)\">${p.label||'—'}</td><td>${peerCell}</td>` +\n" +
+"      `<td>${powCell}</td><td>${voaMode}</td><td>${attenCell}</td>`;\n" +
 "    tbody.appendChild(tr);\n" +
 "  }\n" +
 "}\n" +

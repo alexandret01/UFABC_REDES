@@ -73,7 +73,7 @@ public class DataPoint {
 
     /** Cabeçalho CSV para linhas OXC2 (uma linha por porta). */
     public static String csvOxc2Header() {
-        return "timestamp,portId,status,label,peerPort\n";
+        return "timestamp,portId,status,label,peerPort,power_dBm,attenMode,attenLevel_dB\n";
     }
 
     /**
@@ -131,7 +131,10 @@ public class DataPoint {
             sb.append(escape(p.get("portId"))).append(',');
             sb.append(escape(p.get("status"))).append(',');
             sb.append(escape(p.get("label"))).append(',');
-            sb.append(escape(p.get("peerPort"))).append('\n');
+            sb.append(escape(p.get("peerPort"))).append(',');
+            sb.append(escape(p.get("power"))).append(',');
+            sb.append(escape(p.get("attenMode"))).append(',');
+            sb.append(escape(p.get("attenLevel"))).append('\n');
         }
         return sb.toString();
     }
