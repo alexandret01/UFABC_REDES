@@ -19,9 +19,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * Componente OSGi principal do Optical Lab Monitor.
  *
- * OpticalLabWebResource é registrado como serviço OSGi (@Component) e é
- * descoberto automaticamente pelo BundleContextUtils do onos-rest, sendo
- * servido em /onos/v1/opticallab/... — o mesmo contexto do REST ONOS.
+ * Inicia coleta periódica e servidor HTTP embutido na porta 9191.
+ * O servidor HTTP usa java.net padrão (sem pax-web, sem HttpService OSGi),
+ * garantindo que os endpoints funcionem em qualquer instalação ONOS/Karaf.
  */
 @Component(immediate = true)
 public class OpticalLabApp {
@@ -43,6 +43,7 @@ public class OpticalLabApp {
 
     private OpticalLabStore          store;
     private OpticalLabCollector      collector;
+    private OpticalLabHttpServer     httpServer;
     private ScheduledExecutorService scheduler;
     private final AtomicInteger      collectCount = new AtomicInteger(0);
 
@@ -53,17 +54,28 @@ public class OpticalLabApp {
         scheduler = Executors.newSingleThreadScheduledExecutor(
                 r -> new Thread(r, "opticallab-collector"));
 
+        httpServer = new OpticalLabHttpServer();
+        try {
+            httpServer.start();
+        } catch (Exception e) {
+            log.error("Falha ao iniciar servidor HTTP na porta {}: {}",
+                    OpticalLabHttpServer.PORT, e.getMessage(), e);
+        }
+
         scheduler.scheduleAtFixedRate(this::runCollection,
                 INITIAL_DELAY_S, INTERVAL_SECONDS, TimeUnit.SECONDS);
 
         instance = this;
-        log.info("Optical Lab Monitor STARTED — coletando a cada {}s, "
-                 + "API em /onos/v1/opticallab/", INTERVAL_SECONDS);
+        log.info("Optical Lab Monitor STARTED — coleta a cada {}s, "
+                 + "dashboard: http://<servidor>:{}/ui", INTERVAL_SECONDS, OpticalLabHttpServer.PORT);
     }
 
     @Deactivate
     protected void deactivate() {
         instance = null;
+        if (httpServer != null) {
+            httpServer.stop();
+        }
         if (scheduler != null) {
             scheduler.shutdownNow();
             try { scheduler.awaitTermination(3, TimeUnit.SECONDS); }

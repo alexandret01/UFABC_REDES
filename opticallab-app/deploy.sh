@@ -85,9 +85,10 @@ except Exception as e:
 
     echo ""
     echo "================================================================"
-    echo "  Dashboard: http://$(hostname -I | awk '{print $1}'):8181/onos/v1/opticallab/ui"
-    echo "  REST API:  http://localhost:8181/onos/v1/opticallab/status"
-    echo "  Dataset:   http://localhost:8181/onos/v1/opticallab/dataset.csv"
+    echo "  Dashboard: http://$(hostname -I | awk '{print $1}'):9191/ui"
+    echo "  REST API:  http://localhost:9191/status"
+    echo "  Dataset:   http://localhost:9191/dataset.csv"
+    echo "  (servidor HTTP embutido na porta 9191 — sem depender do pax-web ONOS)"
     echo "================================================================"
 }
 

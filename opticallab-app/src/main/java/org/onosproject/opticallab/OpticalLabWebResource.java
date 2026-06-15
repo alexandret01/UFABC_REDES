@@ -147,10 +147,10 @@ public class OpticalLabWebResource {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // HTML Dashboard (inline — sem dependências externas, funciona offline)
+    // HTML Dashboard — chamado também pelo OpticalLabHttpServer
     // ─────────────────────────────────────────────────────────────────────────
 
-    private static String buildDashboardHtml() {
+    static String buildDashboardHtml() {
         return "<!DOCTYPE html>\n" +
 "<html lang='pt-BR'>\n" +
 "<head>\n" +
@@ -262,12 +262,10 @@ public class OpticalLabWebResource {
 "<footer>UFABC OpticalLab Monitor v1.0 — dados coletados a cada 60s do agente Padtec (TCP:10151) e OXC2 REST (172.17.36.22:8008)</footer>\n" +
 
 "<script>\n" +
-"const API = '/onos/v1/opticallab';\n" +
-"const AUTH = 'Basic ' + btoa('onos:rocks');\n" +
-"const HEADERS = {Authorization: AUTH};\n" +
+"const API = 'http://' + window.location.hostname + ':" + OpticalLabHttpServer.PORT + "';\n" +
 
 "async function fetchJson(path){\n" +
-"  const r = await fetch(API+path,{headers:HEADERS});\n" +
+"  const r = await fetch(API+path);\n" +
 "  if(!r.ok) throw new Error(r.status);\n" +
 "  return r.json();\n" +
 "}\n" +
