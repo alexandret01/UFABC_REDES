@@ -160,12 +160,8 @@ configure_onos() {
     onos_delete "/onos/v1/applications/org.onosproject.fwd/active"
     ok "org.onosproject.fwd desativado"
 
-    # OXC1 (com defeito) — registra para aparecer na topologia
-    if [[ -f "tools/netconf-cfg1.json" ]]; then
-        onos_post "/onos/v1/network/configuration" \
-            -H "content-type:application/json" -d @tools/netconf-cfg1.json
-        ok "OXC1 registrado (ficará UNAVAILABLE — defeito de hardware)"
-    fi
+    # OXC1 — hardware com defeito: NÃO registrar no ONOS.
+    # O GUI2 quebra (ModelCache) quando recebe eventos de device não-registrado.
 
     # OXC2 — remove do ONOS para evitar que o driver apague os cross-connects
     onos_delete "/onos/v1/network/configuration/devices/netconf:172.17.36.22:830"

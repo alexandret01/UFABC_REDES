@@ -1,17 +1,5 @@
 {
   "links": {
-    "padtec:172.17.36.50/1-netconf:172.17.36.22:830/1": {
-      "basic": { "type": "OPTICAL", "durable": true }
-    },
-    "netconf:172.17.36.22:830/1-padtec:172.17.36.50/1": {
-      "basic": { "type": "OPTICAL", "durable": true }
-    },
-    "padtec:172.17.36.50/2-netconf:172.17.36.22:830/5": {
-      "basic": { "type": "OPTICAL", "durable": true }
-    },
-    "netconf:172.17.36.22:830/5-padtec:172.17.36.50/2": {
-      "basic": { "type": "OPTICAL", "durable": true }
-    },
     "of:5e3ec454441280b9/49-padtec:172.17.36.50/4": {
       "basic": { "type": "DIRECT", "durable": true }
     },
@@ -23,12 +11,6 @@
     },
     "padtec:172.17.36.50/5-of:5e3ec454443294fb/49": {
       "basic": { "type": "DIRECT", "durable": true }
-    },
-    "padtec:172.17.36.50/3-netconf:172.17.36.22:830/1": {
-      "basic": { "allowed": false }
-    },
-    "netconf:172.17.36.22:830/1-padtec:172.17.36.50/3": {
-      "basic": { "allowed": false }
     }
   }
 }
