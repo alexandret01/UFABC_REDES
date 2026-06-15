@@ -79,15 +79,16 @@ public class PadtecDeviceProvider implements DeviceProvider {
         providerService = providerRegistry.register(this);
         log.info("Padtec Device Provider Started");
 
-        // Injeta o dispositivo após 45s (aguarda ONOS + agente Java 18 estarem prontos)
-        new Timer().schedule(new TimerTask() {
+        // statsTimer guarda a referência para evitar GC antes do task disparar.
+        // O driver é instalado após o ONOS e o agente já estarem prontos; 5s bastam.
+        statsTimer = new Timer("padtec-init", true);
+        statsTimer.schedule(new TimerTask() {
             @Override
             public void run() {
                 injectDevice();
-                // Inicia polling periódico de estatísticas após a injeção
-                startStatsPolling();
+                startStatsPolling(); // substitui statsTimer pelo timer de polling
             }
-        }, 45000);
+        }, 5000);
     }
 
     /**
