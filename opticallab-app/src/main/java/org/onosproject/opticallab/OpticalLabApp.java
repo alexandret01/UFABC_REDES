@@ -104,7 +104,7 @@ public class OpticalLabApp {
                         n, dp.devices.size(), dp.crossConnects.size(),
                         dp.pavFlowsAdded, dp.lldpLinks);
             }
-        } catch (Exception e) {
+        } catch (Throwable e) {
             log.error("Erro na coleta: {}", e.getMessage(), e);
         }
     }

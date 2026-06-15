@@ -12,10 +12,11 @@ import java.util.Map;
  * Snapshot de métricas coletadas em um instante de tempo.
  *
  * Contém:
- *  - devices: lista de transponders/amplificadores com suas métricas
+ *  - devices:      transponders/amplificadores com suas métricas
  *  - crossConnects: pares ingress→egress do OXC2
- *  - pavFlowsAdded: flows com priority=40000 nos switches PAV (estado ADDED)
- *  - lldpLinks: links ópticos descobertos via LLDP no ONOS
+ *  - oxc2Ports:    potência e atenuação por porta do OXC2
+ *  - pavFlowsAdded: flows priority=40000 nos switches PAV (estado ADDED)
+ *  - lldpLinks:    links ópticos descobertos via LLDP no ONOS
  */
 public class DataPoint {
 
@@ -31,18 +32,22 @@ public class DataPoint {
     /** Pares cross-connect: int[2] = {ingress, egress}. */
     public final List<int[]> crossConnects;
 
+    /** Métricas por porta do OXC2: portId, attenuation (dB), powerReading (dBm). */
+    public final List<Map<String, String>> oxc2Ports;
+
     /** Quantos flows priority=40000 estão ADDED nos PAVs. */
     public final int pavFlowsAdded;
 
     /** Quantidade de links ópticos LLDP no ONOS. */
     public final int lldpLinks;
 
-    /** ID do dispositivo Padtec (para debug). */
+    /** Disponibilidade do dispositivo Padtec no ONOS. */
     public final boolean padtecAvailable;
 
     public DataPoint(
             List<Map<String, String>> devices,
             List<int[]> crossConnects,
+            List<Map<String, String>> oxc2Ports,
             int pavFlowsAdded,
             int lldpLinks,
             boolean padtecAvailable) {
@@ -50,12 +55,13 @@ public class DataPoint {
         this.timestamp = FMT.format(Instant.ofEpochMilli(this.timestampMs));
         this.devices = devices != null ? devices : new ArrayList<>();
         this.crossConnects = crossConnects != null ? crossConnects : new ArrayList<>();
+        this.oxc2Ports = oxc2Ports != null ? oxc2Ports : new ArrayList<>();
         this.pavFlowsAdded = pavFlowsAdded;
         this.lldpLinks = lldpLinks;
         this.padtecAvailable = padtecAvailable;
     }
 
-    /** Cabeçalho CSV: expande um device por linha, uma linha por porta. */
+    /** Cabeçalho CSV para linhas Padtec (uma linha por device). */
     public static String csvHeader() {
         return "timestamp,deviceName,type,channel,lambda," +
                "inputPower,outputPower,inputPowerWDM,outputPowerWDM," +
@@ -65,9 +71,14 @@ public class DataPoint {
                "oxc2Pairs,pavFlowsAdded,lldpLinks\n";
     }
 
+    /** Cabeçalho CSV para linhas OXC2 (uma linha por porta). */
+    public static String csvOxc2Header() {
+        return "timestamp,portId,status,label,peerPort,power_dBm,attenMode,attenLevel_dB\n";
+    }
+
     /**
-     * Linhas CSV para este DataPoint: uma linha por device.
-     * Campos de contexto (oxc2Pairs, pavFlows, lldpLinks) são repetidos.
+     * Linhas CSV Padtec — uma linha por device.
+     * Campos de contexto (oxc2Pairs, pavFlows, lldpLinks) são repetidos em cada linha.
      */
     public String toCsvRows() {
         String oxcPairs = crossConnects.stream()
@@ -103,12 +114,27 @@ public class DataPoint {
             sb.append(pavFlowsAdded).append(',');
             sb.append(lldpLinks).append('\n');
         }
-        // Se não tiver devices, grava uma linha com context only
         if (devices.isEmpty()) {
             sb.append(timestamp).append(",,,,,,,,,,,,,,,,,,,,,,");
             sb.append('"').append(oxcPairs).append('"').append(',');
             sb.append(pavFlowsAdded).append(',');
             sb.append(lldpLinks).append('\n');
+        }
+        return sb.toString();
+    }
+
+    /** Linhas CSV OXC2 — uma linha por porta. */
+    public String toCsvOxc2Rows() {
+        StringBuilder sb = new StringBuilder();
+        for (Map<String, String> p : oxc2Ports) {
+            sb.append(timestamp).append(',');
+            sb.append(escape(p.get("portId"))).append(',');
+            sb.append(escape(p.get("status"))).append(',');
+            sb.append(escape(p.get("label"))).append(',');
+            sb.append(escape(p.get("peerPort"))).append(',');
+            sb.append(escape(p.get("power"))).append(',');
+            sb.append(escape(p.get("attenMode"))).append(',');
+            sb.append(escape(p.get("attenLevel"))).append('\n');
         }
         return sb.toString();
     }
@@ -134,6 +160,7 @@ public class DataPoint {
             xc.add(pair);
         }
         m.put("crossConnects", xc);
+        m.put("oxc2Ports", oxc2Ports);
         m.put("pavFlowsAdded", pavFlowsAdded);
         m.put("lldpLinks", lldpLinks);
         return m;

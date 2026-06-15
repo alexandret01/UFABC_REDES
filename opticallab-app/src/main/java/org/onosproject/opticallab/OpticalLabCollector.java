@@ -23,11 +23,12 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Coleta métricas do laboratório óptico UFABC de três fontes:
+ * Coleta métricas do laboratório óptico UFABC de quatro fontes:
  *
  * 1. Agente Padtec TCP (localhost:10151) — transponders e amplificadores
  * 2. OXC2 REST (172.17.36.22:8008)       — cross-connects
- * 3. ONOS services                        — flows PAV, links LLDP, device status
+ * 3. OXC2 REST port-config/port-state    — atenuação e potência por porta
+ * 4. ONOS services                        — flows PAV, links LLDP, device status
  */
 public class OpticalLabCollector {
 
@@ -55,7 +56,8 @@ public class OpticalLabCollector {
     private final DeviceService   deviceService;
     private final FlowRuleService flowRuleService;
     private final LinkService     linkService;
-    private final ObjectMapper    mapper = new ObjectMapper();
+    private final ObjectMapper    mapper     = new ObjectMapper();
+    private final Oxc2PortReader  oxc2Reader = new Oxc2PortReader();
 
     public OpticalLabCollector(DeviceService deviceService,
                                FlowRuleService flowRuleService,
@@ -72,11 +74,12 @@ public class OpticalLabCollector {
     public DataPoint collect() {
         List<Map<String, String>> devices      = readPadtecAgent();
         List<int[]>               crossConnects = readOxc2CrossConnects();
+        List<Map<String, String>> oxc2Ports    = oxc2Reader.readPortMetrics();
         int                       pavFlows      = countPavFlowsAdded();
         int                       lldpLinks     = countLldpLinks();
         boolean                   padtecOk      = isPadtecAvailable();
 
-        return new DataPoint(devices, crossConnects, pavFlows, lldpLinks, padtecOk);
+        return new DataPoint(devices, crossConnects, oxc2Ports, pavFlows, lldpLinks, padtecOk);
     }
 
     // ── 1. Padtec TCP Agent ────────────────────────────────────────────────────

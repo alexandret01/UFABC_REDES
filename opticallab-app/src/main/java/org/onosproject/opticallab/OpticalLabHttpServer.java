@@ -22,12 +22,13 @@ import java.util.concurrent.Executors;
  * HttpService ou qualquer infraestrutura do Karaf/ONOS.
  *
  * Endpoints:
- *   GET /status         — snapshot atual (JSON)
- *   GET /history        — histórico (JSON, aceita ?limit=N)
- *   GET /dataset.csv    — dataset completo (CSV download)
- *   GET /info           — info do app (JSON)
- *   GET /ui             — dashboard HTML
- *   GET /               — redirect → /ui
+ *   GET /status           — snapshot atual (JSON)
+ *   GET /history          — histórico (JSON, aceita ?limit=N)
+ *   GET /dataset.csv      — dataset Padtec (CSV download)
+ *   GET /dataset-oxc2.csv — dataset OXC2 portas: potência e atenuação (CSV download)
+ *   GET /info             — info do app (JSON)
+ *   GET /ui               — dashboard HTML
+ *   GET /                 — redirect → /ui
  */
 public class OpticalLabHttpServer {
 
@@ -125,13 +126,14 @@ public class OpticalLabHttpServer {
 
     private Response route(String path, String query) {
         switch (path) {
-            case "/status":      return json(200, statusJson());
-            case "/history":     return json(200, historyJson(query));
-            case "/dataset.csv": return csv(csvData());
-            case "/info":        return json(200, infoJson());
-            case "/ui":          return html(buildDashboardHtml());
-            case "/":            return redirect("/ui");
-            default:             return text(404, "Not found");
+            case "/status":           return json(200, statusJson());
+            case "/history":          return json(200, historyJson(query));
+            case "/dataset.csv":      return csvFile("opticallab-dataset.csv",     csvData());
+            case "/dataset-oxc2.csv": return csvFile("opticallab-oxc2-ports.csv",  csvOxc2Data());
+            case "/info":             return json(200, infoJson());
+            case "/ui":               return html(buildDashboardHtml());
+            case "/":                 return redirect("/ui");
+            default:                  return text(404, "Not found");
         }
     }
 
@@ -208,6 +210,16 @@ public class OpticalLabHttpServer {
         return app == null ? "" : app.getStore().toCsvString();
     }
 
+    private String csvOxc2Data() {
+        OpticalLabApp app = OpticalLabApp.getInstance();
+        if (app == null) return DataPoint.csvOxc2Header();
+        StringBuilder sb = new StringBuilder(DataPoint.csvOxc2Header());
+        for (DataPoint dp : app.getStore().getHistory()) {
+            sb.append(dp.toCsvOxc2Rows());
+        }
+        return sb.toString();
+    }
+
     private String infoJson() {
         OpticalLabApp app = OpticalLabApp.getInstance();
         StringBuilder sb = new StringBuilder("{");
@@ -231,9 +243,9 @@ public class OpticalLabHttpServer {
     private static Response html(String body) {
         return new Response(200, "text/html; charset=UTF-8", null, null, bytes(body));
     }
-    private static Response csv(String body) {
+    private static Response csvFile(String filename, String body) {
         return new Response(200, "text/csv", null,
-                "attachment; filename=\"opticallab-dataset.csv\"", bytes(body));
+                "attachment; filename=\"" + filename + "\"", bytes(body));
     }
     private static Response text(int status, String body) {
         return new Response(status, "text/plain; charset=UTF-8", null, null, bytes(body));
@@ -320,7 +332,8 @@ public class OpticalLabHttpServer {
 "  <progress id='countdown' max='30' value='30'></progress>\n" +
 "  <span id='countdown-text'>30s</span>\n" +
 "  <button onclick='fetchAll()'>Atualizar agora</button>\n" +
-"  <button onclick='downloadCsv()'>Baixar Dataset CSV</button>\n" +
+"  <button onclick='downloadCsv()'>Dataset Padtec CSV</button>\n" +
+"  <button onclick='downloadOxc2Csv()'>Dataset OXC2 CSV</button>\n" +
 "</div>\n" +
 "<main>\n" +
 "  <div class='card'>\n" +
@@ -331,6 +344,14 @@ public class OpticalLabHttpServer {
 "    <h2>OXC2 Cross-Connects</h2>\n" +
 "    <table id='xconn-table'>\n" +
 "      <thead><tr><th>Ingress</th><th>Egress</th><th>Status</th></tr></thead>\n" +
+"      <tbody></tbody>\n" +
+"    </table>\n" +
+"  </div>\n" +
+"  <div class='card full-width'>\n" +
+"    <h2>OXC2 Portas <span id='oxc2-port-count' style='color:var(--muted);font-size:11px'></span></h2>\n" +
+"    <table id='oxc2-ports-table'>\n" +
+"      <thead><tr><th>Porta</th><th>Status</th><th>Label</th><th>Peer Port</th>" +
+"<th>Potência OPM (dBm)</th><th>Modo VOA</th><th>Atenuação (dB)</th></tr></thead>\n" +
 "      <tbody></tbody>\n" +
 "    </table>\n" +
 "  </div>\n" +
@@ -382,6 +403,7 @@ public class OpticalLabHttpServer {
 "    <span class='kv-key'>LLDP Links</span><span class='kv-val ${dp.lldpLinks>0?'ok':'warn'}'>${dp.lldpLinks}</span>\n" +
 "    <span class='kv-key'>Cross-Connects</span><span class='kv-val ${dp.crossConnects&&dp.crossConnects.length>0?'ok':'err'}'>${dp.crossConnects?dp.crossConnects.length:0} pares</span>\n" +
 "    <span class='kv-key'>Devices</span><span class='kv-val'>${dp.devices?dp.devices.length:0}</span>\n" +
+"    <span class='kv-key'>OXC2 Portas</span><span class='kv-val ${dp.oxc2Ports&&dp.oxc2Ports.length>0?'ok':'warn'}'>${dp.oxc2Ports?dp.oxc2Ports.length:0} portas lidas</span>\n" +
 "  `;\n" +
 "  const xtbody=document.querySelector('#xconn-table tbody');xtbody.innerHTML='';\n" +
 "  const EXPECTED=[[1,13],[2,11],[3,10],[5,9],[6,15],[7,14]];\n" +
@@ -423,11 +445,48 @@ public class OpticalLabHttpServer {
 "async function fetchAll(){\n" +
 "  try{\n" +
 "    const [dp,history]=await Promise.all([fetchJson('/status'),fetchJson('/history?limit=60')]);\n" +
-"    updateStatus(dp);updateHistory(history);\n" +
+"    updateStatus(dp);updateHistory(history);updateOxc2Ports(dp);\n" +
 "    document.getElementById('last-update').textContent=new Date().toLocaleTimeString();\n" +
 "  }catch(e){document.getElementById('status-badge').textContent='Erro de conexao';}\n" +
 "}\n" +
+"function updateOxc2Ports(dp){\n" +
+"  const tbody=document.querySelector('#oxc2-ports-table tbody');tbody.innerHTML='';\n" +
+"  const ports=dp.oxc2Ports||[];\n" +
+"  const countEl=document.getElementById('oxc2-port-count');\n" +
+"  if(ports.length===0){\n" +
+"    if(countEl)countEl.textContent='(sem dados)';\n" +
+"    tbody.innerHTML='<tr><td colspan=7 style=\"color:var(--muted);padding:8px\">OXC2 inacessivel — verifique RESTCONF em 172.17.36.22:8008</td></tr>';\n" +
+"    return;\n" +
+"  }\n" +
+"  if(countEl)countEl.textContent='('+ports.length+' portas)';\n" +
+"  for(const p of ports){\n" +
+"    const enabled=p.status==='ENABLED';\n" +
+"    const hasPeer=p.peerPort&&p.peerPort.trim()!=='';\n" +
+"    const statusBadge=enabled\n" +
+"      ?'<span class=\"badge badge-ok\">ENABLED</span>'\n" +
+"      :'<span class=\"badge badge-err\">DISABLED</span>';\n" +
+"    const peerCell=hasPeer\n" +
+"      ?`<span class=\"badge badge-ok\">→ porta ${p.peerPort}</span>`\n" +
+"      :'<span style=\"color:var(--muted)\">—</span>';\n" +
+"    let powCell='<span style=\"color:var(--muted)\">—</span>';\n" +
+"    if(p.power){\n" +
+"      const pw=parseFloat(p.power);\n" +
+"      const cls=pw>-30?'ok':(pw>-45?'warn':'err');\n" +
+"      powCell=`<span class=\"${cls}\">${pw.toFixed(2)} dBm</span>`;\n" +
+"    }\n" +
+"    let voaMode=p.attenMode||'—';\n" +
+"    if(voaMode==='VOA_MODE_NONE')voaMode='<span style=\"color:var(--muted)\">NONE</span>';\n" +
+"    else if(voaMode==='VOA_MODE_ABSOLUTE')voaMode='<span class=\"warn\">ABSOLUTE</span>';\n" +
+"    const attenCell=p.attenLevel?`<span class=\"warn\">${parseFloat(p.attenLevel).toFixed(2)} dB</span>`:'<span style=\"color:var(--muted)\">—</span>';\n" +
+"    const tr=document.createElement('tr');\n" +
+"    tr.innerHTML=`<td>${p.portId}</td><td>${statusBadge}</td>` +\n" +
+"      `<td style=\"color:var(--muted)\">${p.label||'—'}</td><td>${peerCell}</td>` +\n" +
+"      `<td>${powCell}</td><td>${voaMode}</td><td>${attenCell}</td>`;\n" +
+"    tbody.appendChild(tr);\n" +
+"  }\n" +
+"}\n" +
 "function downloadCsv(){window.location.href=API+'/dataset.csv';}\n" +
+"function downloadOxc2Csv(){window.location.href=API+'/dataset-oxc2.csv';}\n" +
 "let timeLeft=30;\n" +
 "function tick(){timeLeft--;document.getElementById('countdown').value=timeLeft;\n" +
 "  document.getElementById('countdown-text').textContent=timeLeft+'s';\n" +

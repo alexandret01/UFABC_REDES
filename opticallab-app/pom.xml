@@ -37,6 +37,9 @@
       org.onosproject.openflow,
       org.onosproject.optical-model
     </onos.app.requires>
+
+    <!-- App de laboratório interno — não segue estilo ONOS upstream -->
+    <checkstyle.skip>true</checkstyle.skip>
   </properties>
 
   <dependencies>
