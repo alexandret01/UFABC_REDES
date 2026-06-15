@@ -29,8 +29,10 @@ public class Oxc2PortReader {
 
     private static final Logger log = LoggerFactory.getLogger(Oxc2PortReader.class);
 
+    // Polatis RESTCONF: containers são top-level no módulo optical-switch,
+    // mesmo nível que optical-switch:cross-connects (já validado).
     private static final String OXC2_BASE =
-            "http://172.17.36.22:8008/api/data/optical-switch:optical-switch";
+            "http://172.17.36.22:8008/api/data";
     private static final String OXC2_AUTH =
             "Basic " + java.util.Base64.getEncoder()
                     .encodeToString("admin:root".getBytes());
@@ -84,7 +86,7 @@ public class Oxc2PortReader {
     private Map<Integer, Double> fetchPortAttenuation() {
         Map<Integer, Double> result = new LinkedHashMap<>();
         try {
-            JsonNode root = getJson(OXC2_BASE + "/port-config");
+            JsonNode root = getJson(OXC2_BASE + "/optical-switch:port-config");
             JsonNode portConfig = firstOf(root,
                     "optical-switch:port-config", "port-config");
             if (portConfig == null) return result;
@@ -113,7 +115,7 @@ public class Oxc2PortReader {
     private Map<Integer, Double> fetchPortPower() {
         Map<Integer, Double> result = new LinkedHashMap<>();
         try {
-            JsonNode root = getJson(OXC2_BASE + "/port-state");
+            JsonNode root = getJson(OXC2_BASE + "/optical-switch:port-state");
             JsonNode portState = firstOf(root,
                     "optical-switch:port-state", "port-state");
             if (portState == null) return result;
