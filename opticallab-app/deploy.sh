@@ -85,9 +85,9 @@ except Exception as e:
 
     echo ""
     echo "================================================================"
-    echo "  Dashboard: http://$(hostname -I | awk '{print $1}'):8181/onos/opticallab/ui"
-    echo "  REST API:  http://localhost:8181/onos/opticallab/api/status"
-    echo "  Dataset:   http://localhost:8181/onos/opticallab/api/dataset.csv"
+    echo "  Dashboard: http://$(hostname -I | awk '{print $1}'):8181/onos/v1/opticallab/ui"
+    echo "  REST API:  http://localhost:8181/onos/v1/opticallab/status"
+    echo "  Dataset:   http://localhost:8181/onos/v1/opticallab/dataset.csv"
     echo "================================================================"
 }
 

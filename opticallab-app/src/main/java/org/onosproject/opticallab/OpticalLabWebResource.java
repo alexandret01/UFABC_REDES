@@ -3,6 +3,7 @@ package org.onosproject.opticallab;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.osgi.service.component.annotations.Component;
 
 import javax.ws.rs.GET;
 import javax.ws.rs.Path;
@@ -16,17 +17,19 @@ import java.util.Map;
 /**
  * JAX-RS REST API + Dashboard HTML do Optical Lab Monitor.
  *
- * Instanciado pelo Jersey via OpticalLabWebApplication (AbstractWebApplication).
- * Não precisa de @Component — o registro é feito diretamente pela aplicação JAX-RS.
+ * Registrado como serviço OSGi (@Component) para ser descoberto pelo
+ * BundleContextUtils do onos-rest, que serve todos os recursos @Path encontrados
+ * no registro OSGi sob o contexto /onos/v1/.
  *
- * Endpoints:
- *   GET /onos/opticallab/api/status       — snapshot atual (JSON)
- *   GET /onos/opticallab/api/history      — série histórica (JSON array)
- *   GET /onos/opticallab/api/dataset.csv  — dataset completo (CSV download)
- *   GET /onos/opticallab/ui               — dashboard HTML
- *   GET /onos/opticallab/api/info         — info do app (JSON)
+ * Endpoints (base: /onos/v1/opticallab):
+ *   GET /onos/v1/opticallab/status       — snapshot atual (JSON)
+ *   GET /onos/v1/opticallab/history      — série histórica (JSON array)
+ *   GET /onos/v1/opticallab/dataset.csv  — dataset completo (CSV download)
+ *   GET /onos/v1/opticallab/ui           — dashboard HTML
+ *   GET /onos/v1/opticallab/info         — info do app (JSON)
  */
-@Path("/")
+@Component(immediate = true, service = OpticalLabWebResource.class)
+@Path("opticallab")
 public class OpticalLabWebResource {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
@@ -34,7 +37,7 @@ public class OpticalLabWebResource {
     // ── REST API ──────────────────────────────────────────────────────────────
 
     @GET
-    @Path("api/status")
+    @Path("status")
     @Produces(MediaType.APPLICATION_JSON)
     public Response getStatus() {
         OpticalLabApp app = OpticalLabApp.getInstance();
@@ -56,7 +59,7 @@ public class OpticalLabWebResource {
     }
 
     @GET
-    @Path("api/history")
+    @Path("history")
     @Produces(MediaType.APPLICATION_JSON)
     public Response getHistory(@QueryParam("limit") Integer limit) {
         OpticalLabApp app = OpticalLabApp.getInstance();
@@ -81,7 +84,7 @@ public class OpticalLabWebResource {
     }
 
     @GET
-    @Path("api/dataset.csv")
+    @Path("dataset.csv")
     @Produces("text/csv")
     public Response getDataset() {
         OpticalLabApp app = OpticalLabApp.getInstance();
@@ -97,7 +100,7 @@ public class OpticalLabWebResource {
     }
 
     @GET
-    @Path("api/info")
+    @Path("info")
     @Produces(MediaType.APPLICATION_JSON)
     public Response getInfo() {
         OpticalLabApp app = OpticalLabApp.getInstance();
@@ -131,9 +134,8 @@ public class OpticalLabWebResource {
     @GET
     @Produces(MediaType.TEXT_HTML)
     public Response getRoot() {
-        // redirect / → /ui
         return Response.temporaryRedirect(
-                java.net.URI.create("/onos/opticallab/ui")).build();
+                java.net.URI.create("/onos/v1/opticallab/ui")).build();
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -260,7 +262,7 @@ public class OpticalLabWebResource {
 "<footer>UFABC OpticalLab Monitor v1.0 — dados coletados a cada 60s do agente Padtec (TCP:10151) e OXC2 REST (172.17.36.22:8008)</footer>\n" +
 
 "<script>\n" +
-"const API = '/onos/opticallab/api';\n" +
+"const API = '/onos/v1/opticallab';\n" +
 "const AUTH = 'Basic ' + btoa('onos:rocks');\n" +
 "const HEADERS = {Authorization: AUTH};\n" +
 
