@@ -1,5 +1,6 @@
 package org.onosproject.opticallab;
 
+import com.sun.jersey.spi.container.servlet.ServletContainer;
 import org.onosproject.net.device.DeviceService;
 import org.onosproject.net.flow.FlowRuleService;
 import org.onosproject.net.link.LinkService;
@@ -8,9 +9,11 @@ import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Deactivate;
 import org.osgi.service.component.annotations.Reference;
 import org.osgi.service.component.annotations.ReferenceCardinality;
+import org.osgi.service.http.HttpService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Hashtable;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -20,19 +23,18 @@ import java.util.concurrent.atomic.AtomicInteger;
  * Componente OSGi principal do Optical Lab Monitor.
  *
  * Responsabilidades:
+ *  - Registra servlet Jersey via HttpService OSGi (sem depender de pax-web-extender-war)
  *  - Inicia coleta periódica (a cada INTERVAL_SECONDS)
  *  - Armazena histórico em OpticalLabStore
- *  - Expõe instância estática para o OpticalLabWebResource
- *
- * Acesso: OpticalLabApp.getInstance() — padrão comum em apps ONOS
- *         para comunicação entre @Component e o web resource.
+ *  - Expõe instância estática para OpticalLabWebResource
  */
 @Component(immediate = true)
 public class OpticalLabApp {
 
     private static final Logger log = LoggerFactory.getLogger(OpticalLabApp.class);
     private static final int    INTERVAL_SECONDS = 60;
-    private static final int    INITIAL_DELAY_S  = 5; // aguarda ONOS estabilizar
+    private static final int    INITIAL_DELAY_S  = 5;
+    private static final String WEB_ALIAS        = "/onos/opticallab";
 
     @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected DeviceService deviceService;
@@ -43,13 +45,16 @@ public class OpticalLabApp {
     @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected LinkService linkService;
 
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
+    protected HttpService httpService;
+
     // Singleton acessível pelo web resource
     private static volatile OpticalLabApp instance;
 
-    private OpticalLabStore    store;
-    private OpticalLabCollector collector;
+    private OpticalLabStore          store;
+    private OpticalLabCollector      collector;
     private ScheduledExecutorService scheduler;
-    private final AtomicInteger collectCount = new AtomicInteger(0);
+    private final AtomicInteger      collectCount = new AtomicInteger(0);
 
     @Activate
     protected void activate() {
@@ -57,6 +62,22 @@ public class OpticalLabApp {
         collector = new OpticalLabCollector(deviceService, flowRuleService, linkService);
         scheduler = Executors.newSingleThreadScheduledExecutor(
                 r -> new Thread(r, "opticallab-collector"));
+
+        // Registra servlet Jersey diretamente via OSGi HttpService.
+        // Não depende de pax-web-extender-war nem de Web-ContextPath no manifesto.
+        try {
+            Hashtable<String, String> params = new Hashtable<>();
+            params.put("javax.ws.rs.Application",
+                       "org.onosproject.opticallab.OpticalLabWebApplication");
+            httpService.registerServlet(
+                    WEB_ALIAS,
+                    new ServletContainer(new OpticalLabWebApplication()),
+                    params,
+                    null);
+            log.info("Optical Lab REST registrado em {}", WEB_ALIAS);
+        } catch (Exception e) {
+            log.error("Falha ao registrar servlet REST: {}", e.getMessage(), e);
+        }
 
         scheduler.scheduleAtFixedRate(this::runCollection,
                 INITIAL_DELAY_S, INTERVAL_SECONDS, TimeUnit.SECONDS);
@@ -69,6 +90,11 @@ public class OpticalLabApp {
     @Deactivate
     protected void deactivate() {
         instance = null;
+        try {
+            httpService.unregister(WEB_ALIAS);
+        } catch (Exception e) {
+            log.debug("Erro ao remover servlet: {}", e.getMessage());
+        }
         if (scheduler != null) {
             scheduler.shutdownNow();
             try { scheduler.awaitTermination(3, TimeUnit.SECONDS); }
@@ -93,7 +119,7 @@ public class OpticalLabApp {
         }
     }
 
-    // ── API pública para o web resource ────────────────────────────────────────
+    // ── API pública para o web resource ───────────────────────────────────────
 
     public static OpticalLabApp getInstance() {
         return instance;

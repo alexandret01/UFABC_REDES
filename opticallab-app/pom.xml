@@ -82,6 +82,22 @@
       <scope>provided</scope>
     </dependency>
 
+    <!-- OSGi HttpService para registrar servlet sem depender de pax-web-extender-war -->
+    <dependency>
+      <groupId>org.osgi</groupId>
+      <artifactId>org.osgi.compendium</artifactId>
+      <version>4.3.1</version>
+      <scope>provided</scope>
+    </dependency>
+
+    <!-- Jersey 1 ServletContainer (disponível no runtime ONOS/Karaf) -->
+    <dependency>
+      <groupId>com.sun.jersey</groupId>
+      <artifactId>jersey-servlet</artifactId>
+      <version>1.19.4</version>
+      <scope>provided</scope>
+    </dependency>
+
     <dependency>
       <groupId>org.slf4j</groupId>
       <artifactId>slf4j-api</artifactId>
@@ -130,10 +146,11 @@
               org.onosproject.*;version="[2.7,4.0)",
               org.onlab.*;version="[2.7,4.0)",
               javax.ws.rs.*,
-              com.sun.jersey.spi.container.servlet,
+              com.sun.jersey.*,
               com.fasterxml.jackson.*,
               org.slf4j.*,
               org.osgi.framework.*,
+              org.osgi.service.http.*,
               *
             </Import-Package>
             <Export-Package>
