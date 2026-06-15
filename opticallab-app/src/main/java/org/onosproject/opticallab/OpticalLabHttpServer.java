@@ -347,10 +347,10 @@ public class OpticalLabHttpServer {
 "      <tbody></tbody>\n" +
 "    </table>\n" +
 "  </div>\n" +
-"  <div class='card'>\n" +
-"    <h2>OXC2 Portas — Potencia e Atenuacao</h2>\n" +
+"  <div class='card full-width'>\n" +
+"    <h2>OXC2 Portas — Potencia e Atenuacao <span id='oxc2-port-count' style='color:var(--muted);font-size:11px'></span></h2>\n" +
 "    <table id='oxc2-ports-table'>\n" +
-"      <thead><tr><th>Porta</th><th>Atenuacao (dB)</th><th>Potencia (dBm)</th></tr></thead>\n" +
+"      <thead><tr><th>Porta</th><th>Atenuacao (dB)</th><th>Potencia Atual (dBm)</th><th>Estado</th></tr></thead>\n" +
 "      <tbody></tbody>\n" +
 "    </table>\n" +
 "  </div>\n" +
@@ -402,6 +402,7 @@ public class OpticalLabHttpServer {
 "    <span class='kv-key'>LLDP Links</span><span class='kv-val ${dp.lldpLinks>0?'ok':'warn'}'>${dp.lldpLinks}</span>\n" +
 "    <span class='kv-key'>Cross-Connects</span><span class='kv-val ${dp.crossConnects&&dp.crossConnects.length>0?'ok':'err'}'>${dp.crossConnects?dp.crossConnects.length:0} pares</span>\n" +
 "    <span class='kv-key'>Devices</span><span class='kv-val'>${dp.devices?dp.devices.length:0}</span>\n" +
+"    <span class='kv-key'>OXC2 Portas</span><span class='kv-val ${dp.oxc2Ports&&dp.oxc2Ports.length>0?'ok':'warn'}'>${dp.oxc2Ports?dp.oxc2Ports.length:0} portas lidas</span>\n" +
 "  `;\n" +
 "  const xtbody=document.querySelector('#xconn-table tbody');xtbody.innerHTML='';\n" +
 "  const EXPECTED=[[1,13],[2,11],[3,10],[5,9],[6,15],[7,14]];\n" +
@@ -452,13 +453,28 @@ public class OpticalLabHttpServer {
 "function updateOxc2Ports(dp){\n" +
 "  const tbody=document.querySelector('#oxc2-ports-table tbody');tbody.innerHTML='';\n" +
 "  const ports=dp.oxc2Ports||[];\n" +
+"  const countEl=document.getElementById('oxc2-port-count');\n" +
 "  if(ports.length===0){\n" +
-"    tbody.innerHTML='<tr><td colspan=3 style=\"color:var(--muted)\">Sem dados (OXC2 inacessivel ou sem portas)</td></tr>';\n" +
+"    if(countEl)countEl.textContent='(sem dados)';\n" +
+"    tbody.innerHTML='<tr><td colspan=4 style=\"color:var(--muted);padding:8px\">OXC2 inacessivel ou sem portas — verifique conexao RESTCONF em 172.17.36.22:8008</td></tr>';\n" +
 "    return;\n" +
 "  }\n" +
+"  if(countEl)countEl.textContent='('+ports.length+' portas)';\n" +
 "  for(const p of ports){\n" +
+"    const att=p.attenuation!=='N/A'?parseFloat(p.attenuation):null;\n" +
+"    const pwr=p.powerReading!=='N/A'?parseFloat(p.powerReading):null;\n" +
+"    // estado: potência < -30 dBm = sem sinal, atenuação > 10 dB = atenção\n" +
+"    let estadoBadge;\n" +
+"    if(pwr===null) estadoBadge='<span class=\"badge badge-warn\">SEM LEITURA</span>';\n" +
+"    else if(pwr<-30) estadoBadge='<span class=\"badge badge-err\">SEM SINAL</span>';\n" +
+"    else estadoBadge='<span class=\"badge badge-ok\">OK</span>';\n" +
+"    const attClass=att!==null&&att>10?'warn':'';\n" +
+"    const pwrClass=pwr!==null&&pwr>=-30?'ok':(pwr!==null?'err':'');\n" +
 "    const tr=document.createElement('tr');\n" +
-"    tr.innerHTML=`<td>${p.portId}</td><td>${fmtDb(p.attenuation)}</td><td>${fmtDbm(p.powerReading)}</td>`;\n" +
+"    tr.innerHTML=`<td>${p.portId}</td>` +\n" +
+"      `<td class='${attClass}'>${fmtDb(p.attenuation)}</td>` +\n" +
+"      `<td class='${pwrClass}'>${fmtDbm(p.powerReading)}</td>` +\n" +
+"      `<td>${estadoBadge}</td>`;\n" +
 "    tbody.appendChild(tr);\n" +
 "  }\n" +
 "}\n" +
