@@ -99,9 +99,14 @@
         <configuration>
           <instructions>
             <Bundle-SymbolicName>br.ufabc.onos-app-opticallab</Bundle-SymbolicName>
+            <!--
+              version=0 em org.onosproject.* e org.onlab.* aceita qualquer versao
+              (>=0), evitando conflito quando ONOS e 3.0.0.SNAPSHOT mas o jar de
+              compilacao e 2.7.0 (BND geraria [2.7,3.0) automaticamente).
+            -->
             <Import-Package>
-              org.onosproject.*,
-              org.onlab.*,
+              org.onosproject.*;version=0,
+              org.onlab.*;version=0,
               org.slf4j.*,
               org.osgi.service.component.annotations.*,
               *
