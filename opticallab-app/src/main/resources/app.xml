@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<app name="br.ufabc.opticallab"
+     origin="UFABC"
+     version="1.0.0"
+     title="Optical Lab Monitor"
+     category="Monitoring"
+     url="https://github.com/alexandret01/UFABC_REDES"
+     readme="Monitor do lab óptico UFABC: coleta métricas de transponders Padtec, amplificadores, OXC2 e switches PAV. Dashboard em /onos/opticallab/ui">
+    <desc>
+        Coleta e visualiza métricas em tempo real do laboratório óptico multi-camada da UFABC.
+        Fontes: agente Padtec TCP (10151), OXC2 REST (172.17.36.22:8008) e ONOS services.
+        REST API: /onos/opticallab/api/status|history|dataset.csv
+        Dashboard: /onos/opticallab/ui
+    </desc>
+    <artifact>mvn:br.ufabc/onos-app-opticallab/1.0.0/oar</artifact>
+</app>

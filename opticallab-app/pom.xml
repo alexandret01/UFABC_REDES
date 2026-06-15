@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.onosproject</groupId>
+    <artifactId>onos-dependencies</artifactId>
+    <version>2.7.0</version>
+  </parent>
+
+  <groupId>br.ufabc</groupId>
+  <artifactId>onos-app-opticallab</artifactId>
+  <version>1.0.0</version>
+  <packaging>bundle</packaging>
+  <name>UFABC Optical Lab Monitor</name>
+
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <maven.compiler.source>11</maven.compiler.source>
+    <maven.compiler.target>11</maven.compiler.target>
+    <maven.compiler.release>11</maven.compiler.release>
+    <onos.version>2.7.0</onos.version>
+    <onos.maven.plugin.version>2.4.0</onos.maven.plugin.version>
+
+    <onos.app.name>br.ufabc.opticallab</onos.app.name>
+    <onos.app.title>Optical Lab Monitor</onos.app.title>
+    <onos.app.origin>UFABC</onos.app.origin>
+    <onos.app.category>Monitoring</onos.app.category>
+    <onos.app.url>https://github.com/alexandret01/UFABC_REDES</onos.app.url>
+    <onos.app.readme>
+      Monitor optico do lab UFABC: coleta metricas de transponders Padtec,
+      amplificadores, cross-connects OXC2 e flows PAV. Dashboard na porta 9191.
+    </onos.app.readme>
+    <onos.app.requires>
+      org.onosproject.openflow,
+      org.onosproject.optical-model
+    </onos.app.requires>
+  </properties>
+
+  <dependencies>
+    <!-- ONOS core API (DeviceService, FlowRuleService, LinkService, ...) -->
+    <dependency>
+      <groupId>org.onosproject</groupId>
+      <artifactId>onos-api</artifactId>
+      <version>${onos.version}</version>
+      <scope>provided</scope>
+    </dependency>
+
+    <!-- OSGi annotations -->
+    <dependency>
+      <groupId>org.osgi</groupId>
+      <artifactId>org.osgi.service.component.annotations</artifactId>
+      <version>1.4.0</version>
+      <scope>provided</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-api</artifactId>
+      <version>1.7.30</version>
+      <scope>provided</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.8.1</version>
+        <configuration combine.children="override">
+          <source>11</source>
+          <target>11</target>
+          <release>11</release>
+          <!-- Desativa error-prone (versao 2.3.4 nao suporta Java 21) -->
+          <annotationProcessorPaths combine.self="override"/>
+          <compilerArgs combine.self="override"/>
+        </configuration>
+      </plugin>
+
+      <!-- ONOS app plugin: gera app.xml e empacota o OAR -->
+      <plugin>
+        <groupId>org.onosproject</groupId>
+        <artifactId>onos-maven-plugin</artifactId>
+        <version>${onos.maven.plugin.version}</version>
+        <executions>
+          <execution>
+            <goals>
+              <goal>app</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+
+      <!-- OSGi bundle — sem Web-ContextPath para nao ativar pax-web -->
+      <plugin>
+        <groupId>org.apache.felix</groupId>
+        <artifactId>maven-bundle-plugin</artifactId>
+        <version>5.1.9</version>
+        <extensions>true</extensions>
+        <configuration>
+          <instructions>
+            <Bundle-SymbolicName>br.ufabc.onos-app-opticallab</Bundle-SymbolicName>
+            <!--
+              version=0 em org.onosproject.* e org.onlab.* aceita qualquer versao
+              (>=0), evitando conflito quando ONOS e 3.0.0.SNAPSHOT mas o jar de
+              compilacao e 2.7.0 (BND geraria [2.7,3.0) automaticamente).
+            -->
+            <Import-Package>
+              !java.*,
+              !javax.*,
+              !sun.*,
+              org.onosproject.*;version=0,
+              org.onlab.*;version=0,
+              org.slf4j.*,
+              org.osgi.service.component.annotations.*,
+              *
+            </Import-Package>
+          </instructions>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+</project>

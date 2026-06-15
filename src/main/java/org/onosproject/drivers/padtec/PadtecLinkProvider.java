@@ -1,11 +1,17 @@
 package org.onosproject.drivers.padtec;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.onosproject.net.ConnectPoint;
+import org.onosproject.net.Device;
 import org.onosproject.net.DeviceId;
 import org.onosproject.net.Link;
-import org.onosproject.net.PortNumber;
+import org.onosproject.net.LinkKey;
+import org.onosproject.net.config.NetworkConfigEvent;
+import org.onosproject.net.config.NetworkConfigListener;
+import org.onosproject.net.config.NetworkConfigService;
+import org.onosproject.net.config.basics.BasicLinkConfig;
+import org.onosproject.net.device.DeviceEvent;
+import org.onosproject.net.device.DeviceListener;
+import org.onosproject.net.device.DeviceService;
 import org.onosproject.net.link.DefaultLinkDescription;
 import org.onosproject.net.link.LinkProvider;
 import org.onosproject.net.link.LinkProviderRegistry;
@@ -18,86 +24,70 @@ import org.osgi.service.component.annotations.Reference;
 import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.slf4j.Logger;
 
-import java.io.File;
-import java.util.Timer;
-import java.util.TimerTask;
+import java.util.Set;
 
 import static org.slf4j.LoggerFactory.getLogger;
 
 /**
- * Provedor de links ópticos entre o equipamento Padtec e os switches Polatis.
+ * Injeta links Padtec no ONOS lendo a topologia do network-config (netcfg).
  *
- * Lê a topologia física do arquivo {@value LINKS_FILE}.
- * Se o arquivo não existir, nenhum link é injetado.
+ * Em ONOS 3.x o LinkConfigOperator nao cria links durables automaticamente
+ * — eles precisam ser detectados por um LinkProvider. Este componente le as
+ * entradas BasicLinkConfig do netcfg que envolvem dispositivos padtec:* e
+ * chama providerService.linkDetected() para materializa-las na topologia.
  *
- * Formato do arquivo JSON (array de objetos):
- * <pre>
- * [
- *   { "padtecPort": 1, "remoteDevice": "netconf:192.168.X.X/830", "remotePort": 5 },
- *   { "padtecPort": 2, "remoteDevice": "netconf:192.168.X.X/830", "remotePort": 7 },
- *   { "padtecPort": 3, "remoteDevice": "netconf:192.168.X.Y/830", "remotePort": 3 }
- * ]
- * </pre>
- *
- * Para obter os IDs dos dispositivos Polatis no ONOS:
- *   curl -s -u onos:rocks http://localhost:8181/onos/v1/devices | python3 -m json.tool
- *
- * Após criar/editar o arquivo, reinstale o bundle para reinjetar os links.
+ * Aciona re-injecao quando:
+ *   - o componente ativa (dispositivos Padtec ja disponiveis)
+ *   - um dispositivo Padtec torna-se disponivel (DeviceEvent)
+ *   - uma entrada de link e adicionada/atualizada no netcfg (NetworkConfigEvent)
  */
 @Component(immediate = true)
 public class PadtecLinkProvider implements LinkProvider {
 
     private final Logger log = getLogger(getClass());
 
+    private static final ProviderId PID =
+            new ProviderId("padtec.link", "org.onosproject.drivers.padtec.links");
+
     @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected LinkProviderRegistry linkProviderRegistry;
 
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
+    protected NetworkConfigService netcfgService;
+
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
+    protected DeviceService deviceService;
+
     private LinkProviderService providerService;
 
-    private static final ProviderId PID =
-            new ProviderId("optical.padtec", "org.onosproject.drivers.padtec.links");
-
-    private static final DeviceId PADTEC_ID =
-            DeviceId.deviceId("padtec:172.17.36.50");
-
-    /**
-     * Caminho do arquivo de topologia óptica.
-     * Crie-o manualmente com o mapeamento Padtec ↔ Polatis.
-     */
-    static final String LINKS_FILE = "/home/sdn/padtec-links.json";
-
-    /** Aguarda o device Padtec ser publicado antes de injetar links. */
-    private static final long INJECT_DELAY_MS = 60_000L;
-
-    // -----------------------------------------------------------------------
-    // Lifecycle
-    // -----------------------------------------------------------------------
+    private final DeviceListener deviceListener     = new InternalDeviceListener();
+    private final NetworkConfigListener netcfgListener = new InternalNetcfgListener();
 
     @Activate
     public void activate() {
         providerService = linkProviderRegistry.register(this);
+        deviceService.addListener(deviceListener);
+        netcfgService.addListener(netcfgListener);
 
-        // Injeta links após o device Padtec estar registrado (~60s após ONOS subir)
-        new Timer("padtec-link-inject", true).schedule(new TimerTask() {
-            @Override
-            public void run() {
-                injectLinks();
+        // Injeta links para qualquer dispositivo Padtec ja online
+        deviceService.getDevices().forEach(d -> {
+            if (isPadtec(d.id()) && deviceService.isAvailable(d.id())) {
+                injectLinksForDevice(d.id());
             }
-        }, INJECT_DELAY_MS);
+        });
 
-        log.info("PadtecLinkProvider iniciado. Links serão injetados em {}s " +
-                 "(arquivo: {}).", INJECT_DELAY_MS / 1000, LINKS_FILE);
+        log.info("PadtecLinkProvider started — lendo topologia do netcfg");
     }
 
     @Deactivate
     public void deactivate() {
+        deviceService.removeListener(deviceListener);
+        netcfgService.removeListener(netcfgListener);
         if (providerService != null) {
-            // Remove todos os links que este provider injetou
-            providerService.linksVanished(PADTEC_ID);
             linkProviderRegistry.unregister(this);
             providerService = null;
         }
-        log.info("PadtecLinkProvider encerrado. Links ópticos removidos da topologia.");
+        log.info("PadtecLinkProvider stopped");
     }
 
     @Override
@@ -105,66 +95,110 @@ public class PadtecLinkProvider implements LinkProvider {
         return PID;
     }
 
-    // -----------------------------------------------------------------------
-    // Link injection
-    // -----------------------------------------------------------------------
+    // ── injecao de links ──────────────────────────────────────────────────────
 
     /**
-     * Lê o arquivo de topologia e registra links bidirecionais no ONOS.
-     * Cada entrada gera dois links: Padtec→Remoto e Remoto→Padtec.
+     * Le todas as entradas BasicLinkConfig do netcfg que envolvem deviceId
+     * e chama linkDetected() para cada link permitido.
      */
-    private void injectLinks() {
-        File f = new File(LINKS_FILE);
-        if (!f.exists()) {
-            log.info("Arquivo de topologia óptica não encontrado: {}. " +
-                     "Para habilitar links no ONOS, crie o arquivo com o mapeamento " +
-                     "Padtec↔Polatis (veja tools/padtec-links.example.json).", LINKS_FILE);
+    private void injectLinksForDevice(DeviceId deviceId) {
+        Set<LinkKey> keys = netcfgService.getSubjects(LinkKey.class, BasicLinkConfig.class);
+        if (keys == null || keys.isEmpty()) {
+            log.debug("Nenhuma entrada de link no netcfg");
             return;
         }
 
-        try {
-            JsonNode links = new ObjectMapper().readTree(f);
-            if (!links.isArray()) {
-                log.warn("padtec-links.json deve ser um array JSON. " +
-                         "Verifique o formato em tools/padtec-links.example.json.");
+        int count = 0;
+        for (LinkKey key : keys) {
+            boolean srcMatch = key.src().deviceId().equals(deviceId);
+            boolean dstMatch = key.dst().deviceId().equals(deviceId);
+            if (!srcMatch && !dstMatch) {
+                continue;
+            }
+
+            BasicLinkConfig cfg = netcfgService.getConfig(key, BasicLinkConfig.class);
+            if (cfg == null || !cfg.isAllowed()) {
+                continue;
+            }
+
+            Link.Type type = cfg.type();
+            if (type == null) {
+                type = Link.Type.DIRECT;
+            }
+
+            providerService.linkDetected(
+                    new DefaultLinkDescription(key.src(), key.dst(), type, cfg.isDurable(), null));
+            log.debug("Link injetado: {} -> {} [{}]", key.src(), key.dst(), type);
+            count++;
+        }
+
+        if (count > 0) {
+            log.info("{} link(s) Padtec injetado(s) a partir do netcfg para {}", count, deviceId);
+        } else {
+            log.info("Nenhum link encontrado no netcfg para {} — configure em tools/lab-topology.json",
+                    deviceId);
+        }
+    }
+
+    /** Injeta todos os links de todos os dispositivos Padtec. */
+    private void injectAllPadtecLinks() {
+        deviceService.getDevices().forEach(d -> {
+            if (isPadtec(d.id()) && deviceService.isAvailable(d.id())) {
+                injectLinksForDevice(d.id());
+            }
+        });
+    }
+
+    private boolean isPadtec(DeviceId id) {
+        return id.toString().startsWith("padtec:");
+    }
+
+    // ── listeners ─────────────────────────────────────────────────────────────
+
+    private class InternalDeviceListener implements DeviceListener {
+        @Override
+        public void event(DeviceEvent event) {
+            Device device = event.subject();
+            if (!isPadtec(device.id())) {
+                return;
+            }
+            if (event.type() == DeviceEvent.Type.DEVICE_ADDED ||
+                event.type() == DeviceEvent.Type.DEVICE_AVAILABILITY_CHANGED) {
+                if (deviceService.isAvailable(device.id())) {
+                    log.info("Dispositivo Padtec disponivel — injetando links do netcfg");
+                    injectLinksForDevice(device.id());
+                }
+            }
+        }
+    }
+
+    private class InternalNetcfgListener implements NetworkConfigListener {
+        @Override
+        public void event(NetworkConfigEvent event) {
+            if (!(event.subject() instanceof LinkKey)) {
+                return;
+            }
+            LinkKey key = (LinkKey) event.subject();
+            boolean involvesPadtec = isPadtec(key.src().deviceId())
+                                  || isPadtec(key.dst().deviceId());
+            if (!involvesPadtec) {
                 return;
             }
 
-            int count = 0;
-            for (JsonNode entry : links) {
-                int    padtecPort = entry.path("padtecPort").asInt(-1);
-                String remoteDev  = entry.path("remoteDevice").asText("").trim();
-                long   remotePort = entry.path("remotePort").asLong(-1);
-
-                if (padtecPort < 1 || remoteDev.isEmpty() || remotePort < 1) {
-                    log.warn("Entrada inválida ignorada em padtec-links.json: {}", entry);
-                    continue;
+            if (event.type() == NetworkConfigEvent.Type.CONFIG_ADDED ||
+                event.type() == NetworkConfigEvent.Type.CONFIG_UPDATED) {
+                BasicLinkConfig cfg = netcfgService.getConfig(key, BasicLinkConfig.class);
+                if (cfg != null && cfg.isAllowed()) {
+                    Link.Type type = cfg.type() != null ? cfg.type() : Link.Type.DIRECT;
+                    ConnectPoint src = key.src();
+                    ConnectPoint dst = key.dst();
+                    providerService.linkDetected(
+                            new DefaultLinkDescription(src, dst, type, cfg.isDurable(), null));
+                    log.info("Link Padtec atualizado via netcfg: {} -> {} [{}]", src, dst, type);
                 }
-
-                ConnectPoint padtecCp = new ConnectPoint(
-                        PADTEC_ID, PortNumber.portNumber(padtecPort));
-                ConnectPoint remoteCp = new ConnectPoint(
-                        DeviceId.deviceId(remoteDev), PortNumber.portNumber(remotePort));
-
-                // Link bidirecional Padtec ↔ Polatis
-                providerService.linkDetected(
-                        new DefaultLinkDescription(padtecCp, remoteCp, Link.Type.OPTICAL));
-                providerService.linkDetected(
-                        new DefaultLinkDescription(remoteCp, padtecCp, Link.Type.OPTICAL));
-
-                log.info("Link óptico: {}:{} <-> {}:{}",
-                        PADTEC_ID, padtecPort, remoteDev, remotePort);
-                count++;
+            } else if (event.type() == NetworkConfigEvent.Type.CONFIG_REMOVED) {
+                log.info("Config de link Padtec removida do netcfg: {} — link permanece ate o proximo restart", key);
             }
-
-            if (count > 0) {
-                log.info("{} link(s) óptico(s) injetado(s) no ONOS.", count);
-            } else {
-                log.warn("Nenhum link válido encontrado em {}.", LINKS_FILE);
-            }
-
-        } catch (Exception e) {
-            log.error("Erro ao processar {}: {}", LINKS_FILE, e.getMessage());
         }
     }
 }

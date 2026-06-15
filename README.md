@@ -731,12 +731,86 @@ for a in d.get('alarms',[]): print(f'  [{a[\"severity\"]}] {a[\"description\"][:
 
 ## Interface gráfica
 
+### ONOS UI
 Acesse: `http://172.17.36.231:8181/onos/ui` (usuário: `onos`, senha: `rocks`)
 
 - **Devices** → 3 devices online (Padtec, PAV1, PAV2) + OXC2 representado via links estáticos
 - **Ports** → 5 portas Padtec com canal, potência e status em tempo real
 - **Links** → 4 links bidirecionais (2 OPTICAL + 2 DIRECT)
 - **Alarms** → alarmes LOS/LOF/BDI/FEC quando há falha óptica
+
+---
+
+## Dashboard OpticalLab Monitor (porta 9191)
+
+Aplicação ONOS separada (`opticallab-app/`) que expõe um dashboard web de monitoramento em tempo real na porta 9191. Coleta dados de três fontes: agente TCP Padtec (:10151), REST OXC2 e serviços ONOS (flows, links, devices).
+
+Acesse: `http://172.17.36.231:9191`
+
+### Tabela de dispositivos Padtec
+
+| Coluna | Dado | Formato |
+|---|---|---|
+| Nome | `neName` do equipamento | texto |
+| Tipo | tipo do equipamento | texto |
+| Canal | canal DWDM ativo | texto (ex: C28) |
+| RX WDM | `inputPowerWDM` ou `inputPower` | dBm (2 casas) |
+| TX WDM | `outputPowerWDM` ou `outputPower` | dBm (2 casas) |
+| RX Client | `inputPowerClient` | dBm (2 casas) |
+| TX Client | `outputPowerClient` | dBm (2 casas) |
+| LOS | `isLOS` / `LOS` | NÃO (verde) / SIM (vermelho) |
+| BDI | `isBDI` / `BDI` | NÃO (verde) / SIM (vermelho) |
+| FEC Rate | `fecRate` | notação científica (ex: 5.12e-9) |
+| BIP8 Rate | `bip8Rate` / `BIP8Rate` | notação científica |
+| BEI Rate | `beiRate` / `BEIrate` | notação científica |
+| LOF | `isLOF` / `LOF` | NÃO (verde) / SIM (vermelho) |
+
+O dashboard também exibe: status PAV flows (esperado ≥ 4), links LLDP, cross-connects OXC2, histórico das últimas 60 coletas e download de CSV.
+
+### Branch e deploy
+
+O `opticallab-app` está na branch `feat/optical-lab-gui`. Para compilar e instalar:
+
+```bash
+# No servidor, na branch correta:
+cd ~/UFABC_REDES
+git checkout feat/optical-lab-gui
+git pull
+
+# Compilar
+cd opticallab-app
+mvn clean package -q
+
+# Instalar (primeira vez)
+curl -u onos:rocks -X POST \
+  -H "Content-Type: application/octet-stream" \
+  "http://localhost:8181/onos/v1/applications?activate=true" \
+  --data-binary @target/onos-app-opticallab-1.0.0.oar
+
+# Atualizar (versão já instalada)
+curl -u onos:rocks -X DELETE \
+  "http://localhost:8181/onos/v1/applications/br.ufabc.opticallab"
+sleep 2
+curl -u onos:rocks -X POST \
+  -H "Content-Type: application/octet-stream" \
+  "http://localhost:8181/onos/v1/applications?activate=true" \
+  --data-binary @target/onos-app-opticallab-1.0.0.oar
+```
+
+### Verificar se está rodando
+
+```bash
+# Porta 9191 ouvindo?
+ss -tlnp | grep 9191
+
+# Estado no ONOS
+curl -s -u onos:rocks \
+  http://localhost:8181/onos/v1/applications/br.ufabc.opticallab \
+  | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['name'], d['state'])"
+
+# Log (ONOS 3.x — Bazel)
+grep -i "opticallab\|9191" /tmp/onos-3.0.0-SNAPSHOT/apache-karaf-4.2.14/data/log/karaf.log | tail -10
+```
 
 ---
 
@@ -913,6 +987,15 @@ curl -X POST -H "content-type:application/json" \
 ## Estrutura do repositório
 
 ```
+opticallab-app/                         # Dashboard web (porta 9191) — branch feat/optical-lab-gui
+├── pom.xml                             # Build Maven (OSGi, bundle-plugin 5.1.9)
+├── src/main/java/org/onosproject/opticallab/
+│   ├── OpticalLabApp.java              # Componente OSGi principal (coleta a cada 60s)
+│   ├── OpticalLabHttpServer.java       # Servidor HTTP embutido (porta 9191)
+│   ├── OpticalLabCollector.java        # Coleta: agente Padtec TCP + OXC2 REST + ONOS
+│   └── DataPoint.java                  # Snapshot de coleta (serializado para JSON/CSV)
+└── deploy.sh                           # Script de deploy rápido
+
 src/main/java/org/onosproject/drivers/padtec/
 ├── PadtecDeviceDescription.java    # discoverPortDetails + discoverPortStatistics
 ├── PadtecDeviceProvider.java       # Registra device + polling ~20s + portas + stats
