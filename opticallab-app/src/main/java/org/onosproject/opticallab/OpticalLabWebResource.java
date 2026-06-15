@@ -3,6 +3,7 @@ package org.onosproject.opticallab;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.osgi.service.component.annotations.Component;
 
 import javax.ws.rs.GET;
 import javax.ws.rs.Path;
@@ -16,16 +17,17 @@ import java.util.Map;
 /**
  * JAX-RS REST API + Dashboard HTML do Optical Lab Monitor.
  *
+ * Registrado como serviço OSGi para que o BundleContextUtils (web.xml) o descubra
+ * sem depender de classpath scanning (que não funciona entre bundles OSGi).
+ *
  * Endpoints:
  *   GET /onos/opticallab/api/status       — snapshot atual (JSON)
  *   GET /onos/opticallab/api/history      — série histórica (JSON array)
  *   GET /onos/opticallab/api/dataset.csv  — dataset completo (CSV download)
  *   GET /onos/opticallab/ui               — dashboard HTML
  *   GET /onos/opticallab/api/info         — info do app (JSON)
- *
- * Autenticação: mesma do ONOS (onos:rocks via Basic Auth no header ou
- * configurada no browser se o ONOS já está autenticado na sessão).
  */
+@Component(immediate = true, service = OpticalLabWebResource.class)
 @Path("/")
 public class OpticalLabWebResource {
 

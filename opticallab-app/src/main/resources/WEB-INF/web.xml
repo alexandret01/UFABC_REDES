@@ -7,9 +7,14 @@
     <servlet>
         <servlet-name>JAX-RS Service</servlet-name>
         <servlet-class>com.sun.jersey.spi.container.servlet.ServletContainer</servlet-class>
+        <!--
+          BundleContextUtils descobre recursos @Path registrados como serviços OSGi.
+          OpticalLabWebResource deve ter @Component(service=OpticalLabWebResource.class).
+          Este é o padrão correto para apps ONOS 2.x (Jersey 1 + OSGi whiteboard).
+        -->
         <init-param>
-            <param-name>com.sun.jersey.config.property.packages</param-name>
-            <param-value>org.onosproject.opticallab</param-value>
+            <param-name>javax.ws.rs.Application</param-name>
+            <param-value>org.onlab.rest.BundleContextUtils</param-value>
         </init-param>
         <load-on-startup>1</load-on-startup>
     </servlet>
