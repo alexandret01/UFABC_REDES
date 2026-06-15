@@ -108,6 +108,9 @@
               compilacao e 2.7.0 (BND geraria [2.7,3.0) automaticamente).
             -->
             <Import-Package>
+              !java.*,
+              !javax.*,
+              !sun.*,
               org.onosproject.*;version=0,
               org.onlab.*;version=0,
               org.slf4j.*,
