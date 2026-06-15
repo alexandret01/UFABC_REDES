@@ -58,8 +58,16 @@ public class OpticalLabApp {
         try {
             httpServer.start();
         } catch (Exception e) {
-            log.error("Falha ao iniciar servidor HTTP na porta {}: {}",
-                    OpticalLabHttpServer.PORT, e.getMessage(), e);
+            String err = e.getClass().getName() + ": " + e.getMessage();
+            log.error("Falha ao iniciar HTTP server na porta {}: {}",
+                    OpticalLabHttpServer.PORT, err, e);
+            // Escreve erro em arquivo para diagnóstico fácil (sem precisar ver karaf.log)
+            System.err.println("[OpticalLab] ERRO HTTP server: " + err);
+            try {
+                java.nio.file.Files.write(
+                    java.nio.file.Paths.get("/tmp/opticallab-error.txt"),
+                    err.getBytes("UTF-8"));
+            } catch (Exception ignored) {}
         }
 
         scheduler.scheduleAtFixedRate(this::runCollection,
