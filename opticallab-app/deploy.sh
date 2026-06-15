@@ -68,7 +68,7 @@ deploy() {
         exit 1
     fi
 
-    sleep 2
+    sleep 3
     echo ""
     echo "  Status do app:"
     curl -s -u "$AUTH" "$ONOS/onos/v1/applications/$APP_NAME" | \
@@ -78,17 +78,38 @@ try:
     a=json.load(sys.stdin)
     print(f'  Nome:    {a.get(\"name\",\"?\")}'   )
     print(f'  Estado:  {a.get(\"state\",\"?\")}'  )
-    print(f'  Versão:  {a.get(\"version\",\"?\")}'  )
+    print(f'  Versao:  {a.get(\"version\",\"?\")}'  )
 except Exception as e:
     print(f'  Erro: {e}')
 " 2>/dev/null
 
     echo ""
+    echo "  Verificando diagnostico (aguarde 5s para activate() ser chamado)..."
+    sleep 5
+
+    # Verificar arquivos de diagnostico em varios locais
+    for DIR in /tmp /home/sdn /root .; do
+        for MARKER in class-loaded activate-called server-started activate-error; do
+            F="$DIR/opticallab-$MARKER.txt"
+            if [ -f "$F" ]; then
+                echo "  [OK] $F: $(cat $F)"
+            fi
+        done
+    done
+
+    echo ""
+    echo "  Porta 9191 ouvindo?"
+    ss -tlnp 2>/dev/null | grep 9191 || netstat -tlnp 2>/dev/null | grep 9191 || echo "  (nao detectado)"
+
+    echo ""
+    echo "  Teste HTTP direto:"
+    curl -sf http://localhost:9191/info && echo "" || echo "  (sem resposta na porta 9191)"
+
+    echo ""
     echo "================================================================"
-    echo "  Dashboard: http://$(hostname -I | awk '{print $1}'):9191/ui"
+    echo "  Dashboard: http://$(hostname -I | awk '{print $1}' 2>/dev/null || echo 'localhost'):9191/ui"
     echo "  REST API:  http://localhost:9191/status"
     echo "  Dataset:   http://localhost:9191/dataset.csv"
-    echo "  (servidor HTTP embutido na porta 9191 — sem depender do pax-web ONOS)"
     echo "================================================================"
 }
 

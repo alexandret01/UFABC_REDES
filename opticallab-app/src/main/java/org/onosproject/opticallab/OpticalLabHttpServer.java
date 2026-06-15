@@ -129,7 +129,7 @@ public class OpticalLabHttpServer {
             case "/history":     return json(200, historyJson(query));
             case "/dataset.csv": return csv(csvData());
             case "/info":        return json(200, infoJson());
-            case "/ui":          return html(OpticalLabWebResource.buildDashboardHtml());
+            case "/ui":          return html(buildDashboardHtml());
             case "/":            return redirect("/ui");
             default:             return text(404, "Not found");
         }
@@ -255,6 +255,180 @@ public class OpticalLabHttpServer {
             case 500: return "Internal Server Error";
             default:  return "Unknown";
         }
+    }
+
+    // ── Dashboard HTML ────────────────────────────────────────────────────────
+
+    static String buildDashboardHtml() {
+        return "<!DOCTYPE html>\n" +
+"<html lang='pt-BR'>\n" +
+"<head>\n" +
+"<meta charset='UTF-8'>\n" +
+"<meta name='viewport' content='width=device-width, initial-scale=1'>\n" +
+"<title>Optical Lab Monitor — UFABC</title>\n" +
+"<style>\n" +
+":root{--bg:#1a1a2e;--panel:#16213e;--border:#0f3460;--accent:#e94560;" +
+"--ok:#27ae60;--warn:#f39c12;--err:#e74c3c;--text:#eaf0fb;--muted:#8899aa;}\n" +
+"*{box-sizing:border-box;margin:0;padding:0;}\n" +
+"body{background:var(--bg);color:var(--text);font-family:monospace,sans-serif;" +
+"font-size:14px;min-height:100vh;}\n" +
+"header{background:var(--border);padding:12px 20px;display:flex;align-items:center;" +
+"justify-content:space-between;border-bottom:2px solid var(--accent);}\n" +
+"header h1{font-size:18px;letter-spacing:1px;color:var(--accent);}\n" +
+"#status-badge{padding:4px 10px;border-radius:4px;font-size:12px;" +
+"background:#333;color:var(--muted);}\n" +
+"main{padding:16px;display:grid;grid-template-columns:1fr 1fr;gap:16px;}\n" +
+"@media(max-width:900px){main{grid-template-columns:1fr;}}\n" +
+".card{background:var(--panel);border:1px solid var(--border);border-radius:6px;" +
+"padding:14px;}\n" +
+".card h2{font-size:13px;text-transform:uppercase;letter-spacing:1px;" +
+"color:var(--muted);margin-bottom:10px;border-bottom:1px solid var(--border);" +
+"padding-bottom:6px;}\n" +
+"table{width:100%;border-collapse:collapse;font-size:12px;}\n" +
+"th{text-align:left;color:var(--muted);padding:4px 6px;border-bottom:" +
+"1px solid var(--border);font-weight:normal;}\n" +
+"td{padding:4px 6px;border-bottom:1px solid #1e2a3a;vertical-align:top;}\n" +
+"tr:last-child td{border-bottom:none;}\n" +
+".ok{color:var(--ok);}  .warn{color:var(--warn);}  .err{color:var(--err);}\n" +
+".badge{display:inline-block;padding:2px 6px;border-radius:3px;font-size:11px;}\n" +
+".badge-ok{background:#1a3a2a;color:var(--ok);}\n" +
+".badge-warn{background:#3a2a10;color:var(--warn);}\n" +
+".badge-err{background:#3a1a1a;color:var(--err);}\n" +
+".kv-grid{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:12px;}\n" +
+".kv-key{color:var(--muted);}\n" +
+".kv-val{color:var(--text);}\n" +
+"#history-table-wrap{max-height:300px;overflow-y:auto;}\n" +
+"#history-table-wrap table td,#history-table-wrap table th{font-size:11px;}\n" +
+"footer{padding:10px 20px;color:var(--muted);font-size:11px;text-align:center;" +
+"border-top:1px solid var(--border);}\n" +
+"button{background:var(--accent);color:#fff;border:none;padding:6px 14px;" +
+"border-radius:4px;cursor:pointer;font-size:12px;font-family:monospace;}\n" +
+"button:hover{opacity:0.85;}\n" +
+"#refresh-bar{background:var(--panel);border-bottom:1px solid var(--border);" +
+"padding:8px 20px;display:flex;align-items:center;gap:16px;font-size:12px;color:var(--muted);}\n" +
+"progress{height:4px;width:120px;accent-color:var(--accent);}\n" +
+".full-width{grid-column:1/-1;}\n" +
+"</style>\n" +
+"</head>\n" +
+"<body>\n" +
+"<header>\n" +
+"  <h1>Optical Lab Monitor - UFABC</h1>\n" +
+"  <span id='status-badge'>Carregando...</span>\n" +
+"</header>\n" +
+"<div id='refresh-bar'>\n" +
+"  <span>Ultima atualizacao: <span id='last-update'>-</span></span>\n" +
+"  <progress id='countdown' max='30' value='30'></progress>\n" +
+"  <span id='countdown-text'>30s</span>\n" +
+"  <button onclick='fetchAll()'>Atualizar agora</button>\n" +
+"  <button onclick='downloadCsv()'>Baixar Dataset CSV</button>\n" +
+"</div>\n" +
+"<main>\n" +
+"  <div class='card'>\n" +
+"    <h2>Status Geral</h2>\n" +
+"    <div class='kv-grid' id='status-grid'>Carregando...</div>\n" +
+"  </div>\n" +
+"  <div class='card'>\n" +
+"    <h2>OXC2 Cross-Connects</h2>\n" +
+"    <table id='xconn-table'>\n" +
+"      <thead><tr><th>Ingress</th><th>Egress</th><th>Status</th></tr></thead>\n" +
+"      <tbody></tbody>\n" +
+"    </table>\n" +
+"  </div>\n" +
+"  <div class='card full-width'>\n" +
+"    <h2>Dispositivos Padtec</h2>\n" +
+"    <table id='dev-table'>\n" +
+"      <thead><tr>\n" +
+"        <th>Nome</th><th>Tipo</th><th>Canal</th>\n" +
+"        <th>RX WDM (dBm)</th><th>TX WDM (dBm)</th>\n" +
+"        <th>RX Client</th><th>TX Client</th>\n" +
+"        <th>Gain (dB)</th><th>LOS</th><th>BDI</th><th>FEC Rate</th>\n" +
+"      </tr></thead>\n" +
+"      <tbody></tbody>\n" +
+"    </table>\n" +
+"  </div>\n" +
+"  <div class='card full-width'>\n" +
+"    <h2>Historico de Coletas <span id='history-count' style='color:var(--muted);font-size:11px'></span></h2>\n" +
+"    <div id='history-table-wrap'>\n" +
+"      <table id='history-table'>\n" +
+"        <thead><tr>\n" +
+"          <th>Timestamp</th><th>PAV Flows</th><th>LLDP Links</th><th>XConn Count</th><th>Padtec OK</th><th>Devices</th>\n" +
+"        </tr></thead>\n" +
+"        <tbody></tbody>\n" +
+"      </table>\n" +
+"    </div>\n" +
+"  </div>\n" +
+"</main>\n" +
+"<footer>UFABC OpticalLab Monitor v1.0</footer>\n" +
+"<script>\n" +
+"const API='http://'+window.location.hostname+':9191';\n" +
+"async function fetchJson(p){const r=await fetch(API+p);if(!r.ok)throw new Error(r.status);return r.json();}\n" +
+"function fmtPow(v){return v?parseFloat(v).toFixed(2)+' dBm':'-';}\n" +
+"function fmtLos(v){if(v===undefined||v===null||v==='')return '-';\n" +
+"return String(v).toLowerCase()==='true'?'<span class=\"badge badge-err\">LOS</span>':'<span class=\"badge badge-ok\">OK</span>';}\n" +
+"function fmtBool(v){if(v===undefined||v===null||v==='')return '-';\n" +
+"return String(v).toLowerCase()==='true'?'<span class=\"badge badge-err\">SIM</span>':'<span class=\"badge badge-ok\">NAO</span>';}\n" +
+"function fmtFec(v){return v?parseFloat(v).toExponential(2):'-';}\n" +
+"function updateStatus(dp){\n" +
+"  document.getElementById('status-badge').textContent=dp.padtecAvailable?'Padtec ONLINE':'Padtec OFFLINE';\n" +
+"  document.getElementById('status-badge').style.background=dp.padtecAvailable?'#1a3a2a':'#3a1a1a';\n" +
+"  document.getElementById('status-badge').style.color=dp.padtecAvailable?'#27ae60':'#e74c3c';\n" +
+"  document.getElementById('status-grid').innerHTML=`\n" +
+"    <span class='kv-key'>Timestamp</span><span class='kv-val'>${dp.timestamp||'-'}</span>\n" +
+"    <span class='kv-key'>Padtec</span><span class='kv-val ${dp.padtecAvailable?'ok':'err'}'>${dp.padtecAvailable?'ONLINE':'OFFLINE'}</span>\n" +
+"    <span class='kv-key'>PAV Flows</span><span class='kv-val ${dp.pavFlowsAdded>=4?'ok':'warn'}'>${dp.pavFlowsAdded} / 4</span>\n" +
+"    <span class='kv-key'>LLDP Links</span><span class='kv-val ${dp.lldpLinks>0?'ok':'warn'}'>${dp.lldpLinks}</span>\n" +
+"    <span class='kv-key'>Cross-Connects</span><span class='kv-val ${dp.crossConnects&&dp.crossConnects.length>0?'ok':'err'}'>${dp.crossConnects?dp.crossConnects.length:0} pares</span>\n" +
+"    <span class='kv-key'>Devices</span><span class='kv-val'>${dp.devices?dp.devices.length:0}</span>\n" +
+"  `;\n" +
+"  const xtbody=document.querySelector('#xconn-table tbody');xtbody.innerHTML='';\n" +
+"  const EXPECTED=[[1,13],[2,11],[3,10],[5,9],[6,15],[7,14]];\n" +
+"  const actual=new Set((dp.crossConnects||[]).map(p=>p.ingress+'-'+p.egress));\n" +
+"  for(const [ing,egr] of EXPECTED){\n" +
+"    const present=actual.has(ing+'-'+egr);\n" +
+"    const tr=document.createElement('tr');\n" +
+"    tr.innerHTML=`<td>${ing}</td><td>${egr}</td><td>${present?'<span class=\"badge badge-ok\">OK</span>':'<span class=\"badge badge-err\">AUSENTE</span>'}</td>`;\n" +
+"    xtbody.appendChild(tr);\n" +
+"  }\n" +
+"  const dtbody=document.querySelector('#dev-table tbody');dtbody.innerHTML='';\n" +
+"  for(const d of (dp.devices||[])){\n" +
+"    const tr=document.createElement('tr');\n" +
+"    tr.innerHTML=`<td>${d.neName||'-'}</td><td>${d.type||'-'}</td><td><b>${d.channel||'-'}</b></td>\n" +
+"      <td>${fmtPow(d.inputPowerWDM||d.inputPower)}</td><td>${fmtPow(d.outputPowerWDM||d.outputPower)}</td>\n" +
+"      <td>${fmtPow(d.inputPowerClient)}</td><td>${fmtPow(d.outputPowerClient)}</td>\n" +
+"      <td>${d.gain?parseFloat(d.gain).toFixed(2)+' dB':'-'}</td>\n" +
+"      <td>${fmtLos(d.isLOS)}</td><td>${fmtBool(d.isBDI)}</td><td>${fmtFec(d.fecRate)}</td>`;\n" +
+"    dtbody.appendChild(tr);\n" +
+"  }\n" +
+"}\n" +
+"function updateHistory(history){\n" +
+"  document.getElementById('history-count').textContent='('+history.length+' pontos)';\n" +
+"  const tbody=document.querySelector('#history-table tbody');tbody.innerHTML='';\n" +
+"  for(const dp of history.slice(-20).reverse()){\n" +
+"    const tr=document.createElement('tr');\n" +
+"    tr.innerHTML=`<td>${dp.timestamp||'-'}</td>\n" +
+"      <td class='${dp.pavFlowsAdded>=4?\"ok\":\"warn\"}'>${dp.pavFlowsAdded}</td>\n" +
+"      <td>${dp.lldpLinks}</td><td>${(dp.crossConnects||[]).length}</td>\n" +
+"      <td class='${dp.padtecAvailable?\"ok\":\"err\"}'>${dp.padtecAvailable?'OK':'FAIL'}</td>\n" +
+"      <td>${(dp.devices||[]).map(d=>d.neName).join(', ')||'-'}</td>`;\n" +
+"    tbody.appendChild(tr);\n" +
+"  }\n" +
+"}\n" +
+"async function fetchAll(){\n" +
+"  try{\n" +
+"    const [dp,history]=await Promise.all([fetchJson('/status'),fetchJson('/history?limit=60')]);\n" +
+"    updateStatus(dp);updateHistory(history);\n" +
+"    document.getElementById('last-update').textContent=new Date().toLocaleTimeString();\n" +
+"  }catch(e){document.getElementById('status-badge').textContent='Erro de conexao';}\n" +
+"}\n" +
+"function downloadCsv(){window.location.href=API+'/dataset.csv';}\n" +
+"let timeLeft=30;\n" +
+"function tick(){timeLeft--;document.getElementById('countdown').value=timeLeft;\n" +
+"  document.getElementById('countdown-text').textContent=timeLeft+'s';\n" +
+"  if(timeLeft<=0){timeLeft=30;fetchAll();}}\n" +
+"setInterval(tick,1000);fetchAll();\n" +
+"</script>\n" +
+"</body>\n" +
+"</html>\n";
     }
 
     // ── Response record ───────────────────────────────────────────────────────

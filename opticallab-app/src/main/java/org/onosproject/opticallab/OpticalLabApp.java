@@ -109,12 +109,16 @@ public class OpticalLabApp {
         }
     }
 
-    /** Escreve marcador de diagnóstico em /tmp/opticallab-<name>.txt */
     static void diag(String name, String msg) {
-        try {
-            Files.write(Paths.get("/tmp/opticallab-" + name + ".txt"),
-                    (System.currentTimeMillis() + " " + msg + "\n").getBytes("UTF-8"));
-        } catch (Exception ignored) {}
+        String line = System.currentTimeMillis() + " " + msg + "\n";
+        System.out.println("[OPTICALLAB-DIAG] " + name + ": " + msg);
+        System.err.println("[OPTICALLAB-DIAG] " + name + ": " + msg);
+        for (String dir : new String[]{"/tmp", System.getProperty("user.home", "/home/sdn"), "."}) {
+            try {
+                Files.write(Paths.get(dir + "/opticallab-" + name + ".txt"), line.getBytes("UTF-8"));
+                break;
+            } catch (Exception ignored) {}
+        }
     }
 
     public static OpticalLabApp getInstance() { return instance; }

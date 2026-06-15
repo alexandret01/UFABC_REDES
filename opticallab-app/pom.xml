@@ -24,16 +24,14 @@
     <onos.version>2.7.0</onos.version>
     <onos.maven.plugin.version>2.4.0</onos.maven.plugin.version>
 
-    <!-- ONOS app metadata -->
     <onos.app.name>br.ufabc.opticallab</onos.app.name>
     <onos.app.title>Optical Lab Monitor</onos.app.title>
     <onos.app.origin>UFABC</onos.app.origin>
     <onos.app.category>Monitoring</onos.app.category>
     <onos.app.url>https://github.com/alexandret01/UFABC_REDES</onos.app.url>
     <onos.app.readme>
-      Monitor óptico do lab UFABC: coleta métricas de transponders Padtec,
-      amplificadores, cross-connects OXC2 e flows PAV. Gera dataset CSV e
-      expõe dashboard em /onos/opticallab/ui.
+      Monitor optico do lab UFABC: coleta metricas de transponders Padtec,
+      amplificadores, cross-connects OXC2 e flows PAV. Dashboard na porta 9191.
     </onos.app.readme>
     <onos.app.requires>
       org.onosproject.openflow,
@@ -50,30 +48,6 @@
       <scope>provided</scope>
     </dependency>
 
-    <!-- REST framework base class (AbstractWebResource) -->
-    <dependency>
-      <groupId>org.onosproject</groupId>
-      <artifactId>onos-rest</artifactId>
-      <version>${onos.version}</version>
-      <scope>provided</scope>
-    </dependency>
-
-    <!-- JAX-RS 2.x annotations -->
-    <dependency>
-      <groupId>javax.ws.rs</groupId>
-      <artifactId>javax.ws.rs-api</artifactId>
-      <version>2.1.1</version>
-      <scope>provided</scope>
-    </dependency>
-
-    <!-- JSON serialization -->
-    <dependency>
-      <groupId>com.fasterxml.jackson.core</groupId>
-      <artifactId>jackson-databind</artifactId>
-      <version>2.10.2</version>
-      <scope>provided</scope>
-    </dependency>
-
     <!-- OSGi annotations -->
     <dependency>
       <groupId>org.osgi</groupId>
@@ -81,7 +55,6 @@
       <version>1.4.0</version>
       <scope>provided</scope>
     </dependency>
-
 
     <dependency>
       <groupId>org.slf4j</groupId>
@@ -117,7 +90,7 @@
         </executions>
       </plugin>
 
-      <!-- OSGi bundle -->
+      <!-- OSGi bundle — sem Web-ContextPath para nao ativar pax-web -->
       <plugin>
         <groupId>org.apache.felix</groupId>
         <artifactId>maven-bundle-plugin</artifactId>
@@ -126,19 +99,13 @@
         <configuration>
           <instructions>
             <Bundle-SymbolicName>br.ufabc.onos-app-opticallab</Bundle-SymbolicName>
-            <Web-ContextPath>/onos/opticallab</Web-ContextPath>
             <Import-Package>
-              org.onosproject.*;version="[2.7,4.0)",
-              org.onlab.*;version="[2.7,4.0)",
-              javax.ws.rs.*,
-              com.fasterxml.jackson.*,
-org.slf4j.*,
-              org.osgi.framework.*,
+              org.onosproject.*,
+              org.onlab.*,
+              org.slf4j.*,
+              org.osgi.service.component.annotations.*,
               *
             </Import-Package>
-            <Export-Package>
-              org.onosproject.opticallab
-            </Export-Package>
           </instructions>
         </configuration>
       </plugin>
