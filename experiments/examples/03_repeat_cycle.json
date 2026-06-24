@@ -1,0 +1,54 @@
+{
+  "name": "repeat-cycle-stability",
+  "description": "Cicla ON/OFF na mesma rota N vezes para testar estabilidade e repetibilidade",
+  "version": "1.0",
+
+  "config": {
+    "oxc2_url":    "http://172.17.36.22:8008",
+    "oxc2_user":   "admin",
+    "oxc2_pass":   "root",
+    "monitor_url": "http://localhost:9191",
+    "output_dir":  "./results"
+  },
+
+  "pre_actions": [
+    { "type": "log",     "message": "Estado inicial antes dos ciclos" },
+    { "type": "measure", "label": "inicial" }
+  ],
+
+  "steps": [
+    {
+      "name": "ciclo-on",
+      "description": "Liga cross-connect 1→13 e mede — repete 5 vezes",
+      "repeat": 5,
+      "actions": [
+        { "type": "oxc2_add_xconnect", "ingress": 1, "egress": 13 }
+      ],
+      "stabilize_s": 5,
+      "measure": {
+        "duration_s": 20,
+        "interval_s": 5
+      }
+    },
+    {
+      "name": "ciclo-off",
+      "description": "Desliga cross-connect 1→13 e mede — repete 5 vezes",
+      "repeat": 5,
+      "actions": [
+        { "type": "oxc2_del_xconnect", "ingress": 1, "egress": 13 }
+      ],
+      "stabilize_s": 5,
+      "measure": {
+        "duration_s": 20,
+        "interval_s": 5
+      }
+    }
+  ],
+
+  "post_actions": [
+    { "type": "log",                "message": "Restaurando conexão final" },
+    { "type": "oxc2_add_xconnect", "ingress": 1, "egress": 13 },
+    { "type": "wait",              "seconds": 3 },
+    { "type": "measure",           "label": "final" }
+  ]
+}

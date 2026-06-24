@@ -1,0 +1,90 @@
+{
+  "name": "voa-power-sweep",
+  "description": "Varre atenuação VOA de 0 a 10 dB em passos de 2 dB e mede potência OPM na porta 9",
+  "version": "1.0",
+
+  "config": {
+    "oxc2_url":    "http://172.17.36.22:8008",
+    "oxc2_user":   "admin",
+    "oxc2_pass":   "root",
+    "monitor_url": "http://localhost:9191",
+    "output_dir":  "./results"
+  },
+
+  "pre_actions": [
+    { "type": "log",     "message": "Garantindo conexão ativa antes do sweep" },
+    { "type": "oxc2_add_xconnect", "ingress": 1, "egress": 13 },
+    { "type": "wait",    "seconds": 3 },
+    { "type": "measure", "label": "pre_sweep_sem_voa" }
+  ],
+
+  "steps": [
+    {
+      "name": "voa-0dB",
+      "description": "VOA desabilitado (sem atenuação) — referência",
+      "repeat": 1,
+      "actions": [
+        { "type": "oxc2_voa", "port": 9, "mode": "VOA_MODE_NONE" }
+      ],
+      "stabilize_s": 3,
+      "measure": { "duration_s": 30, "interval_s": 5 }
+    },
+    {
+      "name": "voa-2dB",
+      "description": "Atenuação de 2 dB na porta 9",
+      "repeat": 1,
+      "actions": [
+        { "type": "oxc2_voa", "port": 9, "mode": "VOA_MODE_ABSOLUTE", "level_dB": 2.0 }
+      ],
+      "stabilize_s": 3,
+      "measure": { "duration_s": 30, "interval_s": 5 }
+    },
+    {
+      "name": "voa-4dB",
+      "description": "Atenuação de 4 dB na porta 9",
+      "repeat": 1,
+      "actions": [
+        { "type": "oxc2_voa", "port": 9, "mode": "VOA_MODE_ABSOLUTE", "level_dB": 4.0 }
+      ],
+      "stabilize_s": 3,
+      "measure": { "duration_s": 30, "interval_s": 5 }
+    },
+    {
+      "name": "voa-6dB",
+      "description": "Atenuação de 6 dB na porta 9",
+      "repeat": 1,
+      "actions": [
+        { "type": "oxc2_voa", "port": 9, "mode": "VOA_MODE_ABSOLUTE", "level_dB": 6.0 }
+      ],
+      "stabilize_s": 3,
+      "measure": { "duration_s": 30, "interval_s": 5 }
+    },
+    {
+      "name": "voa-8dB",
+      "description": "Atenuação de 8 dB na porta 9",
+      "repeat": 1,
+      "actions": [
+        { "type": "oxc2_voa", "port": 9, "mode": "VOA_MODE_ABSOLUTE", "level_dB": 8.0 }
+      ],
+      "stabilize_s": 3,
+      "measure": { "duration_s": 30, "interval_s": 5 }
+    },
+    {
+      "name": "voa-10dB",
+      "description": "Atenuação de 10 dB na porta 9",
+      "repeat": 1,
+      "actions": [
+        { "type": "oxc2_voa", "port": 9, "mode": "VOA_MODE_ABSOLUTE", "level_dB": 10.0 }
+      ],
+      "stabilize_s": 3,
+      "measure": { "duration_s": 30, "interval_s": 5 }
+    }
+  ],
+
+  "post_actions": [
+    { "type": "log",     "message": "Removendo atenuação VOA — restaurando estado normal" },
+    { "type": "oxc2_voa", "port": 9, "mode": "VOA_MODE_NONE" },
+    { "type": "wait",    "seconds": 3 },
+    { "type": "measure", "label": "pos_sweep_sem_voa" }
+  ]
+}

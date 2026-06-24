@@ -1,0 +1,81 @@
+{
+  "name": "xconnect-switch-test",
+  "description": "Liga e desliga cross-connects do OXC2 e mede potência antes/depois",
+  "version": "1.0",
+
+  "config": {
+    "oxc2_url":    "http://172.17.36.22:8008",
+    "oxc2_user":   "admin",
+    "oxc2_pass":   "root",
+    "monitor_url": "http://localhost:9191",
+    "output_dir":  "./results"
+  },
+
+  "pre_actions": [
+    { "type": "log",     "message": "Baseline — OXC2 no estado inicial" },
+    { "type": "measure", "label": "baseline" },
+    { "type": "wait",    "seconds": 2 }
+  ],
+
+  "steps": [
+    {
+      "name": "rota-principal",
+      "description": "Ativa rota DC5→DC6 via portas 1→13 e 5→9",
+      "repeat": 1,
+      "actions": [
+        { "type": "log",                "message": "Ativando cross-connects da rota principal" },
+        { "type": "oxc2_add_xconnect", "ingress": 1,  "egress": 13 },
+        { "type": "oxc2_add_xconnect", "ingress": 5,  "egress": 9  },
+        { "type": "oxc2_add_xconnect", "ingress": 2,  "egress": 11 }
+      ],
+      "stabilize_s": 5,
+      "measure": {
+        "duration_s":  60,
+        "interval_s":  10
+      }
+    },
+    {
+      "name": "rota-alternativa",
+      "description": "Remove rota principal, ativa rota alternativa via 3→10",
+      "repeat": 1,
+      "actions": [
+        { "type": "log",                "message": "Trocando para rota alternativa" },
+        { "type": "oxc2_del_xconnect", "ingress": 1, "egress": 13 },
+        { "type": "oxc2_del_xconnect", "ingress": 5, "egress": 9  },
+        { "type": "oxc2_add_xconnect", "ingress": 3, "egress": 10 }
+      ],
+      "stabilize_s": 5,
+      "measure": {
+        "duration_s":  60,
+        "interval_s":  10
+      }
+    },
+    {
+      "name": "sem-conexao",
+      "description": "Remove todas as conexões — mede ruído de fundo",
+      "repeat": 1,
+      "actions": [
+        { "type": "log",                "message": "Removendo todas as conexões" },
+        { "type": "oxc2_del_xconnect", "ingress": 2,  "egress": 11 },
+        { "type": "oxc2_del_xconnect", "ingress": 3,  "egress": 10 }
+      ],
+      "stabilize_s": 3,
+      "measure": {
+        "duration_s":  30,
+        "interval_s":  5
+      }
+    }
+  ],
+
+  "post_actions": [
+    { "type": "log",                "message": "Restaurando estado padrão do laboratório" },
+    { "type": "oxc2_add_xconnect", "ingress": 1,  "egress": 13 },
+    { "type": "oxc2_add_xconnect", "ingress": 2,  "egress": 11 },
+    { "type": "oxc2_add_xconnect", "ingress": 3,  "egress": 10 },
+    { "type": "oxc2_add_xconnect", "ingress": 5,  "egress": 9  },
+    { "type": "oxc2_add_xconnect", "ingress": 6,  "egress": 15 },
+    { "type": "oxc2_add_xconnect", "ingress": 7,  "egress": 14 },
+    { "type": "wait",              "seconds": 5  },
+    { "type": "measure",           "label": "final" }
+  ]
+}
