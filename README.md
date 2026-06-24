@@ -767,34 +767,38 @@ Acesse: `http://172.17.36.231:9191`
 
 O dashboard também exibe: status PAV flows (esperado ≥ 4), links LLDP, cross-connects OXC2, histórico das últimas 60 coletas e download de CSV.
 
+### Tabela OXC2 Portas (potência e atenuação)
+
+Exibe métricas por porta lidas via RESTCONF JSON do Polatis (portas 1–16):
+
+| Coluna | Endpoint YANG | Disponível |
+|---|---|---|
+| Porta | `port-config` | 1–16 |
+| Status | `port-config` (ENABLED/DISABLED) | 1–16 |
+| Label | `port-config` | 1–16 |
+| Peer Port | `port-config` (cross-connect ativo) | 1–16 |
+| Potência OPM (dBm) | `opm-power` — dBm direto, sem multiplicador | 9–16 |
+| Modo VOA | `voa` (VOA_MODE_NONE / VOA_MODE_ABSOLUTE) | 9–16 |
+| Atenuação (dB) | `voa/atten-level` — presente só quando mode=ABSOLUTE | 9–16 |
+
+Código de cor na coluna Potência: verde > −30 dBm, amarelo −30…−45 dBm, vermelho ≤ −45 dBm (sem sinal).
+
+**Dataset OXC2:** `GET http://172.17.36.231:9191/dataset-oxc2.csv`  
+Colunas: `timestamp, portId, status, label, peerPort, power_dBm, attenMode, attenLevel_dB`
+
 ### Branch e deploy
 
-O `opticallab-app` está na branch `feat/optical-lab-gui`. Para compilar e instalar:
+O `opticallab-app` está na branch `feat/oxc2-optical-metrics` (PR #22 → main). Para compilar e instalar:
 
 ```bash
-# No servidor, na branch correta:
 cd ~/UFABC_REDES
-git checkout feat/optical-lab-gui
+git fetch origin
+git checkout feat/oxc2-optical-metrics
 git pull
 
-# Compilar
 cd opticallab-app
-mvn clean package -q
-
-# Instalar (primeira vez)
-curl -u onos:rocks -X POST \
-  -H "Content-Type: application/octet-stream" \
-  "http://localhost:8181/onos/v1/applications?activate=true" \
-  --data-binary @target/onos-app-opticallab-1.0.0.oar
-
-# Atualizar (versão já instalada)
-curl -u onos:rocks -X DELETE \
-  "http://localhost:8181/onos/v1/applications/br.ufabc.opticallab"
-sleep 2
-curl -u onos:rocks -X POST \
-  -H "Content-Type: application/octet-stream" \
-  "http://localhost:8181/onos/v1/applications?activate=true" \
-  --data-binary @target/onos-app-opticallab-1.0.0.oar
+mvn clean install -DskipTests
+onos-app localhost reinstall! br.ufabc.opticallab target/onos-app-opticallab-1.0.0.oar
 ```
 
 ### Verificar se está rodando
@@ -809,8 +813,101 @@ curl -s -u onos:rocks \
   | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['name'], d['state'])"
 
 # Log (ONOS 3.x — Bazel)
-grep -i "opticallab\|9191" /tmp/onos-3.0.0-SNAPSHOT/apache-karaf-4.2.14/data/log/karaf.log | tail -10
+grep -i "opticallab\|9191\|Coleta" /tmp/onos-3.0.0-SNAPSHOT/apache-karaf-4.2.14/data/log/karaf.log | tail -10
 ```
+
+> **Nota OSGi:** o `opticallab-app` usa `Accept: application/yang-data+json` + Jackson para ler o OXC2 (não JAXP/XML). `DocumentBuilderFactory.newInstance()` lança `FactoryConfigurationError extends Error` em OSGi — não capturado por `catch(Exception)`, cancela silenciosamente o scheduler. A versão atual corrige isso.
+
+---
+
+## Executor de Experimentos
+
+Script Python para programar e executar experimentos automatizados no laboratório, definindo sequência de ações, intervalos e repetições em um arquivo JSON.
+
+**Branch:** `feat/experiment-runner`
+
+```bash
+cd ~/UFABC_REDES
+git fetch origin
+git checkout feat/experiment-runner
+git pull
+pip3 install requests
+```
+
+### Uso rápido
+
+```bash
+# Teste sem executar nada (dry-run)
+python3 experiments/run_experiment.py experiments/examples/02_voa_sweep.json --dry-run
+
+# Validar JSON sem executar
+python3 experiments/run_experiment.py experiments/examples/01_xconnect_switch.json --validate
+
+# Executar experimento
+python3 experiments/run_experiment.py experiments/examples/02_voa_sweep.json
+```
+
+### Formato JSON do experimento
+
+```json
+{
+  "name": "meu-experimento",
+  "description": "Descrição do que será testado",
+  "config": {
+    "oxc2_url": "http://172.17.36.22:8008",
+    "monitor_url": "http://localhost:9191",
+    "output_dir": "./results"
+  },
+  "pre_actions":  [...],
+  "steps": [
+    {
+      "name": "passo-1",
+      "description": "O que este passo faz",
+      "repeat": 3,
+      "actions": [...],
+      "stabilize_s": 5,
+      "measure": { "duration_s": 60, "interval_s": 5 }
+    }
+  ],
+  "post_actions": [...]
+}
+```
+
+### Tipos de ação
+
+| Tipo | Parâmetros | Descrição |
+|---|---|---|
+| `log` | `message` | Escreve mensagem no log |
+| `wait` | `seconds` | Pausa N segundos |
+| `measure` | `label` | Snapshot único do monitor |
+| `oxc2_add_xconnect` | `ingress`, `egress` | Liga cross-connect no OXC2 |
+| `oxc2_del_xconnect` | `ingress`, `egress` | Desliga cross-connect no OXC2 |
+| `oxc2_voa` | `port`, `mode`, `level_dB` | Configura atenuação VOA por porta |
+| `onos_request` | `method`, `path`, `body` | Chamada REST ao ONOS |
+| `shell` | `command` | Executa comando de shell |
+
+**Modo VOA:**
+- `"mode": "VOA_MODE_NONE"` — sem atenuação
+- `"mode": "VOA_MODE_ABSOLUTE", "level_dB": 3.0` — atenuação fixa em 3 dB
+
+### Saídas geradas
+
+Salvas em `results/YYYYMMDD_HHMMSS_<nome>/`:
+
+| Arquivo | Conteúdo |
+|---|---|
+| `experiment.json` | Cópia da definição usada |
+| `measurements.csv` | Resumo por snapshot: `label, timestamp, pav_flows, lldp_links, xconn_count, oxc2_port_count` |
+| `oxc2_ports.csv` | Potência e atenuação por porta a cada snapshot |
+| `padtec_devices.csv` | Métricas dos transponders/amplificadores por snapshot |
+
+### Exemplos incluídos
+
+| Arquivo | Descrição |
+|---|---|
+| `examples/01_xconnect_switch.json` | Liga/desliga cross-connects e mede potência antes/depois |
+| `examples/02_voa_sweep.json` | Varre atenuação VOA de 0 a 10 dB em passos de 2 dB |
+| `examples/03_repeat_cycle.json` | Cicla ON/OFF 5× para testar estabilidade e repetibilidade |
 
 ---
 
@@ -987,12 +1084,20 @@ curl -X POST -H "content-type:application/json" \
 ## Estrutura do repositório
 
 ```
-opticallab-app/                         # Dashboard web (porta 9191) — branch feat/optical-lab-gui
-├── pom.xml                             # Build Maven (OSGi, bundle-plugin 5.1.9)
+experiments/                            # Executor de experimentos — branch feat/experiment-runner
+├── run_experiment.py                   # Runner principal (python3 run_experiment.py exp.json)
+└── examples/
+    ├── 01_xconnect_switch.json         # Liga/desliga cross-connects e mede potência
+    ├── 02_voa_sweep.json               # Varre atenuação VOA 0→10 dB em passos de 2 dB
+    └── 03_repeat_cycle.json            # Ciclos ON/OFF (repeat: 5) para teste de estabilidade
+
+opticallab-app/                         # Dashboard web (porta 9191) — branch feat/oxc2-optical-metrics
+├── pom.xml                             # Build Maven (OSGi, bundle-plugin 5.1.9; checkstyle desabilitado)
 ├── src/main/java/org/onosproject/opticallab/
 │   ├── OpticalLabApp.java              # Componente OSGi principal (coleta a cada 60s)
 │   ├── OpticalLabHttpServer.java       # Servidor HTTP embutido (porta 9191)
 │   ├── OpticalLabCollector.java        # Coleta: agente Padtec TCP + OXC2 REST + ONOS
+│   ├── Oxc2PortReader.java             # Lê port-config + opm-power + voa via JSON (RESTCONF)
 │   └── DataPoint.java                  # Snapshot de coleta (serializado para JSON/CSV)
 └── deploy.sh                           # Script de deploy rápido
 
