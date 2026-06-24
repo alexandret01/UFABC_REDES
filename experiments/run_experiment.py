@@ -234,9 +234,6 @@ class ExperimentRunner:
                 return None
             d = r.json()
 
-            # Alarmes ativos do PadtecAlarmConsumer (ONOS)
-            alarms = self._fetch_alarms()
-
             return {
                 "label":           label,
                 "timestamp":       d.get("timestamp", datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")),
@@ -245,30 +242,12 @@ class ExperimentRunner:
                 "padtec_ok":       d.get("padtecAvailable", ""),
                 "xconn_count":     len(d.get("crossConnects", [])),
                 "oxc2_port_count": len(d.get("oxc2Ports", [])),
-                "alarm_count":     len(alarms),
-                "alarm_critical":  sum(1 for a in alarms if a.get("severity") == "CRITICAL"),
-                "alarm_major":     sum(1 for a in alarms if a.get("severity") == "MAJOR"),
-                "alarm_warning":   sum(1 for a in alarms if a.get("severity") == "WARNING"),
                 "oxc2_ports":      d.get("oxc2Ports", []),
                 "devices":         d.get("devices", []),
-                "alarms":          alarms,
             }
         except Exception as exc:
             log.warning("  Snapshot falhou: %s", exc)
             return None
-
-    def _fetch_alarms(self):
-        """Retorna lista de alarmes ativos do PadtecAlarmConsumer via ONOS REST."""
-        try:
-            url = f"{self.cfg['onos_url']}/onos/v1/alarms"
-            r   = self.onos.get(url, timeout=5)
-            if r.status_code != 200:
-                return []
-            # Filtra apenas alarmes não limpos (ativos)
-            return [a for a in r.json().get("alarms", []) if not a.get("cleared", False)]
-        except Exception as exc:
-            log.debug("  Alarms fetch falhou: %s", exc)
-            return []
 
     def _log_snap(self, snap):
         powers = [
@@ -276,20 +255,11 @@ class ExperimentRunner:
             for p in snap.get("oxc2_ports", [])
             if p.get("power")
         ]
-        alarm_str = ""
-        if snap.get("alarm_count", 0) > 0:
-            alarm_str = "  ⚠ alarmes: %d (CRIT=%d MAJ=%d WARN=%d)" % (
-                snap["alarm_count"], snap["alarm_critical"],
-                snap["alarm_major"],  snap["alarm_warning"])
-        log.info("  📸 %s | xconn=%s pav=%s | pot: %s%s",
+        log.info("  📸 %s | xconn=%s pav=%s | pot: %s",
                  snap["timestamp"],
                  snap["xconn_count"],
                  snap["pav_flows"],
-                 "  ".join(powers[:6]) or "—",
-                 alarm_str)
-        # Detalha cada alarme ativo no log
-        for a in snap.get("alarms", []):
-            log.info("     🔔 [%s] %s", a.get("severity", "?"), a.get("description", "?"))
+                 "  ".join(powers[:6]) or "—")
 
     # ── OXC2 REST ─────────────────────────────────────────────────────────────
 
@@ -364,37 +334,13 @@ class ExperimentRunner:
         with open(self.out_dir / "experiment.json", "w", encoding="utf-8") as f:
             json.dump(self.spec, f, indent=2, ensure_ascii=False)
 
-        # CSV resumo (uma linha por snapshot) — inclui contagem de alarmes
+        # CSV resumo (uma linha por snapshot)
         flat_keys = ["label", "timestamp", "pav_flows", "lldp_links",
-                     "padtec_ok", "xconn_count", "oxc2_port_count",
-                     "alarm_count", "alarm_critical", "alarm_major", "alarm_warning"]
+                     "padtec_ok", "xconn_count", "oxc2_port_count"]
         with open(self.out_dir / "measurements.csv", "w", newline="", encoding="utf-8") as f:
             w = csv.DictWriter(f, fieldnames=flat_keys, extrasaction="ignore")
             w.writeheader()
             w.writerows(self.measurements)
-
-        # CSV alarmes ONOS (PadtecAlarmConsumer) — uma linha por alarme por snapshot
-        alarm_rows = []
-        for snap in self.measurements:
-            for a in snap.get("alarms", []):
-                alarm_rows.append({
-                    "label":       snap["label"],
-                    "timestamp":   snap["timestamp"],
-                    "severity":    a.get("severity", ""),
-                    "description": a.get("description", ""),
-                    "device_id":   a.get("deviceId", ""),
-                    "cleared":     a.get("cleared", False),
-                    "time_raised": a.get("timeRaised", ""),
-                    "time_updated":a.get("timeUpdated", ""),
-                })
-        alarm_path = self.out_dir / "alarms.csv"
-        alarm_keys = ["label", "timestamp", "severity", "description",
-                      "device_id", "cleared", "time_raised", "time_updated"]
-        with open(alarm_path, "w", newline="", encoding="utf-8") as f:
-            w = csv.DictWriter(f, fieldnames=alarm_keys)
-            w.writeheader()
-            if alarm_rows:
-                w.writerows(alarm_rows)
 
         # CSV detalhado OXC2 por porta
         port_rows = []
