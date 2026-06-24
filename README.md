@@ -897,9 +897,32 @@ Salvas em `results/YYYYMMDD_HHMMSS_<nome>/`:
 | Arquivo | Conteúdo |
 |---|---|
 | `experiment.json` | Cópia da definição usada |
-| `measurements.csv` | Resumo por snapshot: `label, timestamp, pav_flows, lldp_links, xconn_count, oxc2_port_count` |
+| `measurements.csv` | Resumo por snapshot: `label, timestamp, pav_flows, lldp_links, xconn_count, oxc2_port_count, alarm_count, alarm_critical, alarm_major, alarm_warning` |
 | `oxc2_ports.csv` | Potência e atenuação por porta a cada snapshot |
 | `padtec_devices.csv` | Métricas dos transponders/amplificadores por snapshot |
+| `alarms.csv` | Alarmes ativos do **PadtecAlarmConsumer** a cada snapshot (dataset final) |
+
+#### Sobre o `alarms.csv` (PadtecAlarmConsumer)
+
+O ONOS expõe via `GET /onos/v1/alarms` os alarmes ativos coletados pelo `PadtecAlarmConsumer`. O runner consulta esse endpoint a cada snapshot e grava uma linha por alarme ativo:
+
+| Campo | Descrição |
+|---|---|
+| `label` | Label do snapshot (ex.: `baseline`, `ciclo-on_rep1_t0`) |
+| `timestamp` | Data/hora do snapshot (ISO 8601) |
+| `severity` | `CRITICAL` (LOS), `MAJOR` (LOF, BDI) ou `WARNING` (FEC rate > 1e-4) |
+| `description` | Texto do alarme (ex.: `"LOS on port 1"`) |
+| `device_id` | ID ONOS do dispositivo Padtec (ex.: `netconf:172.17.36.50:8886`) |
+| `cleared` | `False` = alarme ativo (todos os registros); `True` = resolvido |
+| `time_raised` | Epoch ms de quando o alarme foi detectado |
+| `time_updated` | Epoch ms da última atualização |
+
+**Como os alarmes aparecem:** quando o OXC2 remove um cross-connect ou a potência óptica cai abaixo do limiar, o Padtec gera um evento LOS (Loss of Signal) → `PadtecAlarmConsumer` converte para alarme ONOS CRITICAL → aparece em `/onos/v1/alarms` → runner grava no `alarms.csv`. Isso permite correlacionar o momento exato de cada mudança de rota com a presença/ausência de alarmes nos transponders.
+
+```bash
+# Verificar alarmes ativos manualmente (no servidor ONOS)
+curl -u onos:rocks http://localhost:8181/onos/v1/alarms | python3 -m json.tool
+```
 
 ### Exemplos incluídos
 
